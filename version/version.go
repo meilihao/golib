@@ -1,5 +1,5 @@
 // from https://github.com/pingcap/tidb/blob/master/util/versioninfo/versioninfo.go
-package golib
+package version
 
 import (
 	"encoding/json"
