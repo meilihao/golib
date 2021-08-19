@@ -114,7 +114,7 @@ func UnaryLogServerInterceptor() grpc.UnaryServerInterceptor {
 
 		resp, err := handler(ctx, req)
 
-		code := grpc.Code(err)
+		code := status.Code(err)
 		level := grpc_zap.DefaultCodeToLevel(code)
 		md, _ := metadata.FromIncomingContext(ctx)
 
