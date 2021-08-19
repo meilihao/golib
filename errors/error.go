@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/meilihao/goi18n/v2"
+	"github.com/meilihao/water"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -18,6 +19,21 @@ type CodeErr struct {
 
 func (e CodeErr) Error() string {
 	return fmt.Sprintf("code=%s, message=%s", e.Code, e.Message)
+}
+
+func I18nError0(c *water.Context, e *goi18n.Elem, args ...interface{}) error {
+	l := c.Environ.GetString("i18n")
+	if len(args) == 0 {
+		return CodeErr{
+			Code:    e.Key,
+			Message: e.Map[l],
+		}
+	} else {
+		return CodeErr{
+			Code:    e.Key,
+			Message: fmt.Sprintf(e.Map[l], args...),
+		}
+	}
 }
 
 func I18nError(c *gin.Context, e *goi18n.Elem, args ...interface{}) error {
