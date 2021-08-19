@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/meilihao/golib/v1/log"
+	"github.com/meilihao/golib/v2/log"
 
 	"go.uber.org/zap"
 )

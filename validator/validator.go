@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/meilihao/golib/v1/log"
+	"github.com/meilihao/golib/v2/log"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/locales/en"

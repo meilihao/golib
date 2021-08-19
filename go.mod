@@ -1,4 +1,4 @@
-module github.com/meilihao/golib/v1
+module github.com/meilihao/golib/v2
 
 go 1.17
 

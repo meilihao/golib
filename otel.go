@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/meilihao/golib/v1/log"
+	"github.com/meilihao/golib/v2/log"
 
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"

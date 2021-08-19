@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/meilihao/golib/v1/log"
+	"github.com/meilihao/golib/v2/log"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"

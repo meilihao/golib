@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/meilihao/golib/v1/convert"
+	"github.com/meilihao/golib/v2/convert"
 
 	"github.com/pkg/errors"
 	"gopkg.in/ini.v1"

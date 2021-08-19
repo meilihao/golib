@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/meilihao/golib/v1/log"
+	"github.com/meilihao/golib/v2/log"
 
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel"
