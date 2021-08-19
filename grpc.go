@@ -1,7 +1,7 @@
 // [Golang gRPC实践 连载四 gRPC认证](https://segmentfault.com/a/1190000007933303)
 // [grpc-go](ttps://github.com/grpc/grpc-go)
 // gRPC 本身只能设置一个拦截器, 但 go-grpc-middleware 项目可以解决这个问题
-package lib
+package golib
 
 import (
 	"context"

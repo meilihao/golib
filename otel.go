@@ -2,7 +2,7 @@
 // metric from https://github.com/open-telemetry/opentelemetry-go/blob/main/exporters/otlp/otlpmetric/otlpmetricgrpc/example_test.go
 // see [opentelemetry-java/QUICKSTART.md](https://github.com/open-telemetry/opentelemetry-java/blob/master/QUICKSTART.md)
 // [Documentation / Go / Getting Started](https://opentelemetry.io/docs/go/getting-started/)
-package lib
+package golib
 
 import (
 	"context"
