@@ -32,6 +32,24 @@ func CmdCombined(name string, args ...string) ([]byte, error) {
 	return bytes.TrimSpace(out), err
 }
 
+func CmdCombinedWithStdin(reader io.Reader, name string, args ...string) ([]byte, error) {
+	now := time.Now()
+
+	cmd := exec.Command(name, args...)
+	cmd.Env = append(os.Environ(), "LANG=POSIX")
+
+	cmd.Stdin = reader
+	out, err := cmd.CombinedOutput()
+
+	if err != nil {
+		log.Glog.Error("exec", zap.String("cmd", fmt.Sprintf("%s %s", name, strings.Join(args, " "))), zap.Error(err), zap.Int64("duration", time.Since(now).Milliseconds()))
+	} else {
+		log.Glog.Debug("exec", zap.String("cmd", fmt.Sprintf("%s %s", name, strings.Join(args, " "))), zap.Int64("duration", time.Since(now).Milliseconds()))
+	}
+
+	return bytes.TrimSpace(out), err
+}
+
 func CmdCombinedWithBash(cmdIn string) ([]byte, error) {
 	now := time.Now()
 
