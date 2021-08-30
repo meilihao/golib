@@ -16,7 +16,7 @@ func (ct *Mytime) UnmarshalJSON(b []byte) (err error) {
 	}
 
 	s := strings.Trim(string(b), `"`)
-	nt, err := time.Parse(ctLayout, s)
+	nt, err := time.ParseInLocation(ctLayout, s, time.Local)
 	*ct = Mytime(nt)
 	return
 }
