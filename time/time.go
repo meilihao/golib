@@ -15,6 +15,11 @@ func (ct *Mytime) UnmarshalJSON(b []byte) (err error) {
 		return nil
 	}
 
+	if string(b) == `""` {
+		*ct = Mytime(time.Time{})
+		return nil
+	}
+
 	s := strings.Trim(string(b), `"`)
 	nt, err := time.ParseInLocation(ctLayout, s, time.Local)
 	*ct = Mytime(nt)
@@ -28,6 +33,10 @@ func (ct Mytime) MarshalJSON() ([]byte, error) {
 
 // String returns the time in the custom format
 func (ct *Mytime) String() string {
+	if time.Time(*ct).IsZero() {
+		return `""`
+	}
+
 	t := time.Time(*ct)
 	return `"` + t.Format(ctLayout) + `"`
 }
