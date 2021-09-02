@@ -380,10 +380,11 @@ func (c *Cron) run() {
 
 			case id := <-c.remove:
 				if entry := c.GetEntry(id); entry.Valid() {
-					timer.Stop()  // timer may be set by this entry
-					now = c.now() // for test TestScheduleAfterRemoval
+					timer.Stop() // timer may be set by this entry
 					c.removeEntry(id)
 					log.Glog.Info("cron removed", zap.Int("id", int(entry.ID)), zap.String("unique_id", entry.UniqueID))
+
+					now = c.now() // for test TestScheduleAfterRemoval
 				}
 			}
 
