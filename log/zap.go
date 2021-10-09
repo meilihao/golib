@@ -51,6 +51,7 @@ type ZapConfig struct {
 }
 
 // InitZap config zap
+// [如何自定义zap的日志输出格式？](https://cloud.tencent.com/developer/article/1811437)
 func InitZap(c *ZapConfig) {
 	// lumberjack.Logger is already safe for concurrent use, so we don't need to
 	// lock it.
@@ -68,8 +69,10 @@ func InitZap(c *ZapConfig) {
 		Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	}
 
+	encoderConf := zap.NewProductionEncoderConfig()
+	encoderConf.EncodeTime = zapcore.RFC3339TimeEncoder // no use unixstamp
 	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+		zapcore.NewJSONEncoder(encoderConf),
 		w,
 		Level,
 	)
