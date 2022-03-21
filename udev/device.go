@@ -20,6 +20,7 @@ var (
 type SdDevice struct {
 	Devpath         string
 	Env             map[string]string
+	Attrs           map[string]string
 	Tags            []string
 	UsecInitialized string // 当设备在 udevd 中注册时, USEC_INITIALIZED 设置为单调递增的系统时钟的值. `systemd/src/libsystemd/sd-device/device-private.c#device_ensure_usec_initialized`
 
@@ -115,8 +116,9 @@ func DeviceStrjoinNew(a, b, c, d string) (*SdDevice, error) {
 // sd_device_new_from_syspath
 func SdDeviceNewFromSyspath(syspath string) (r *SdDevice, err error) {
 	r = &SdDevice{
-		Env:  map[string]string{},
-		Tags: make([]string, 0, 1),
+		Env:   map[string]string{},
+		Attrs: map[string]string{},
+		Tags:  make([]string, 0, 1),
 	}
 
 	err = DeviceSetSyspath(r, syspath, true)
@@ -144,8 +146,26 @@ func DeviceSetSyspath(device *SdDevice, syspath string, verify bool) (err error)
 		}
 	}
 	device.Devpath = syspath
+	ReadAttrs(device)
 
 	return ReadUevent(device)
+}
+
+func ReadAttrs(device *SdDevice) error {
+	files, err := os.ReadDir(device.Devpath)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		if f.IsDir() || f.Name() == "uevent" || f.Name() == "descriptors" {
+			continue
+		}
+
+		device.Attrs[f.Name()] = file.FileValue(filepath.Join(device.Devpath, f.Name()))
+	}
+
+	return nil
 }
 
 // https://github.com/citilinkru/libudev
