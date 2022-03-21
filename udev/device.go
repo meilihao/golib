@@ -20,6 +20,7 @@ var (
 type SdDevice struct {
 	Parent *SdDevice
 
+	Name            string
 	Devpath         string
 	Envs            map[string]string
 	Attrs           map[string]string
@@ -31,6 +32,15 @@ type SdDevice struct {
 	IdFilename string
 
 	_set_parent bool
+}
+
+func (d *SdDevice) GetName() string {
+	if d.Name != "" {
+		return d.Name
+	}
+
+	d.Name = filepath.Base(d.Devpath)
+	return d.Name
 }
 
 func (d *SdDevice) GetParent() (*SdDevice, error) {
@@ -266,4 +276,55 @@ func ReadUdevInfo(udevDataPath string, d *SdDevice) error {
 	}
 
 	return nil
+}
+
+type FilterFn func(p string) bool
+
+func ListDevices(subsystem string, fn FilterFn) (devices []*SdDevice, err error) {
+	switch subsystem {
+	case "block":
+		return ListBlockDevices(fn)
+	default:
+		err = fmt.Errorf("no subsystem impl: %s", subsystem)
+	}
+	return
+}
+
+func ListBlockDevices(fn FilterFn) (devices []*SdDevice, err error) {
+	ls, err := filepath.Glob("/sys/class/block/*")
+	if err != nil {
+		return
+	}
+
+	devices = make([]*SdDevice, 0)
+	for _, p := range ls {
+		if !fn(p) {
+			continue
+		}
+
+		r := &SdDevice{
+			Envs:  map[string]string{},
+			Attrs: map[string]string{},
+			Tags:  make([]string, 0, 1),
+		}
+
+		if err = DeviceSetSyspath(r, p, false); err != nil {
+			return nil, err
+		}
+
+		devices = append(devices, r)
+	}
+
+	return
+}
+
+func WithFilterDevtype(name string) func(p string) bool {
+	return func(p string) bool {
+		data := file.FileValue(filepath.Join(p, "uevent"))
+		if data == "" {
+			return false
+		}
+
+		return strings.Contains(data, fmt.Sprintf("DEVTYPE=%s", name))
+	}
 }
