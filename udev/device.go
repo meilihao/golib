@@ -19,7 +19,7 @@ var (
 
 type SdDevice struct {
 	Devpath         string
-	Env             map[string]string
+	Envs            map[string]string
 	Attrs           map[string]string
 	Tags            []string
 	UsecInitialized string // 当设备在 udevd 中注册时, USEC_INITIALIZED 设置为单调递增的系统时钟的值. `systemd/src/libsystemd/sd-device/device-private.c#device_ensure_usec_initialized`
@@ -34,8 +34,8 @@ func (d *SdDevice) GetSubsystem() string {
 		return d.Subsystem
 	}
 
-	if d.Env["SUBSYSTEM"] != "" {
-		d.Subsystem = d.Env["SUBSYSTEM"]
+	if d.Envs["SUBSYSTEM"] != "" {
+		d.Subsystem = d.Envs["SUBSYSTEM"]
 		return d.Subsystem
 	}
 
@@ -49,7 +49,7 @@ func (d *SdDevice) GetIdFilename() string {
 		return d.IdFilename
 	}
 
-	tmp, _ := strconv.Atoi(d.Env["MAJOR"])
+	tmp, _ := strconv.Atoi(d.Envs["MAJOR"])
 	if tmp > 0 {
 		if d.GetSubsystem() == "block" {
 			d.IdFilename = fmt.Sprintf("%s%s", "b", d.Devnum)
@@ -60,7 +60,7 @@ func (d *SdDevice) GetIdFilename() string {
 		return d.IdFilename
 	}
 
-	tmp, _ = strconv.Atoi(d.Env["IFINDEX"]) // net device
+	tmp, _ = strconv.Atoi(d.Envs["IFINDEX"]) // net device
 	if tmp > 0 {
 		d.IdFilename = fmt.Sprintf("%s%d", "n", tmp)
 		return d.IdFilename
@@ -116,7 +116,7 @@ func DeviceStrjoinNew(a, b, c, d string) (*SdDevice, error) {
 // sd_device_new_from_syspath
 func SdDeviceNewFromSyspath(syspath string) (r *SdDevice, err error) {
 	r = &SdDevice{
-		Env:   map[string]string{},
+		Envs:  map[string]string{},
 		Attrs: map[string]string{},
 		Tags:  make([]string, 0, 1),
 	}
@@ -181,7 +181,7 @@ func ReadUevent(device *SdDevice) error {
 			continue
 		}
 
-		device.Env[field[0]] = field[1]
+		device.Envs[field[0]] = field[1]
 
 	}
 	device.Devnum = file.FileValue(filepath.Join(device.Devpath, "dev"))
@@ -218,7 +218,7 @@ func ReadUdevInfo(udevDataPath string, d *SdDevice) error {
 				continue
 			}
 
-			d.Env[fields[0]] = fields[1]
+			d.Envs[fields[0]] = fields[1]
 		}
 	}
 
