@@ -18,6 +18,8 @@ var (
 )
 
 type SdDevice struct {
+	Parent *SdDevice
+
 	Devpath         string
 	Envs            map[string]string
 	Attrs           map[string]string
@@ -27,6 +29,47 @@ type SdDevice struct {
 	Devnum     string
 	Subsystem  string
 	IdFilename string
+
+	_set_parent bool
+}
+
+func (d *SdDevice) GetParent() (*SdDevice, error) {
+	if d._set_parent {
+		return d.Parent, nil
+	}
+
+	if err := DeviceNewFromChild(d); err != nil {
+		return nil, err
+	}
+
+	d._set_parent = true
+	return d.Parent, nil
+}
+
+func DeviceNewFromChild(child *SdDevice) error {
+	d := child.Devpath
+
+	for {
+		d = filepath.Dir(d)
+		if !file.IsFile(filepath.Join(d, "/uevent")) {
+			break
+		}
+
+		parent := &SdDevice{
+			Envs:  map[string]string{},
+			Attrs: map[string]string{},
+			Tags:  make([]string, 0, 1),
+		}
+
+		if err := DeviceSetSyspath(parent, d, false); err != nil {
+			return err
+		}
+		child.Parent = parent
+
+		break
+	}
+
+	return nil
 }
 
 func (d *SdDevice) GetSubsystem() string {

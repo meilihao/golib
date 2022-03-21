@@ -15,4 +15,10 @@ func TestFromName(t *testing.T) {
 	fmt.Printf("%+v\n", d.Device)
 	fmt.Println(d.Device.GetSubsystem())
 	fmt.Println(d.Device.GetIdFilename())
+
+	p, err := d.Device.GetParent()
+	assert.Nil(t, err)
+	assert.NotNil(t, p)
+
+	fmt.Printf("%+v\n", *p)
 }
