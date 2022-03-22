@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/meilihao/golib/v2/log"
@@ -17,11 +18,16 @@ import (
 )
 
 type Option struct {
-	IgnoreErr bool
-	Timeout   time.Duration
+	IgnoreErr   bool
+	Timeout     time.Duration
+	SysProcAttr *syscall.SysProcAttr
 }
 
 func CmdCombinedWithCtx(ctx context.Context, opt *Option, name string, args ...string) ([]byte, error) {
+	if opt == nil {
+		opt = &Option{}
+	}
+
 	now := time.Now()
 
 	if opt.Timeout.Seconds() > 0 {
@@ -32,6 +38,9 @@ func CmdCombinedWithCtx(ctx context.Context, opt *Option, name string, args ...s
 
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = append(os.Environ(), "LANG=POSIX")
+	if opt.SysProcAttr != nil {
+		cmd.SysProcAttr = opt.SysProcAttr
+	}
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -53,7 +62,57 @@ func CmdCombinedWithCtx(ctx context.Context, opt *Option, name string, args ...s
 }
 
 func CmdCombined(opt *Option, name string, args ...string) ([]byte, error) {
+	if opt == nil {
+		opt = &Option{}
+	}
+
 	return CmdCombinedWithCtx(context.TODO(), opt, name, args...)
+}
+
+func CmdCombinedBashWithCtx(ctx context.Context, opt *Option, in string) ([]byte, error) {
+	if opt == nil {
+		opt = &Option{}
+	}
+
+	now := time.Now()
+
+	if opt.Timeout.Seconds() > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, opt.Timeout)
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(ctx, "bash", "-c", in)
+	cmd.Env = append(os.Environ(), "LANG=POSIX")
+	if opt.SysProcAttr != nil {
+		cmd.SysProcAttr = opt.SysProcAttr
+	}
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		var exerr *exec.ExitError
+		if errors.As(err, &exerr) && len(out) > 0 {
+			err = errors.New(string(out))
+		}
+
+		if !opt.IgnoreErr {
+			log.Glog.Error("exec", zap.String("cmd", in), zap.Error(err), zap.Int64("duration", time.Since(now).Milliseconds()))
+		} else {
+			log.Glog.Debug("exec", zap.String("cmd", in), zap.Error(err), zap.Int64("duration", time.Since(now).Milliseconds()))
+		}
+	} else {
+		log.Glog.Debug("exec", zap.String("cmd", in), zap.Int64("duration", time.Since(now).Milliseconds()))
+	}
+
+	return bytes.TrimSpace(out), err
+}
+
+func CmdCombinedBash(opt *Option, in string) ([]byte, error) {
+	if opt == nil {
+		opt = &Option{}
+	}
+
+	return CmdCombinedBashWithCtx(context.TODO(), opt, in)
 }
 
 func CmdCombinedWithStdin(reader io.Reader, name string, args ...string) ([]byte, error) {
@@ -69,23 +128,6 @@ func CmdCombinedWithStdin(reader io.Reader, name string, args ...string) ([]byte
 		log.Glog.Error("exec", zap.String("cmd", fmt.Sprintf("%s %s", name, strings.Join(args, " "))), zap.Error(err), zap.Int64("duration", time.Since(now).Milliseconds()))
 	} else {
 		log.Glog.Debug("exec", zap.String("cmd", fmt.Sprintf("%s %s", name, strings.Join(args, " "))), zap.Int64("duration", time.Since(now).Milliseconds()))
-	}
-
-	return bytes.TrimSpace(out), err
-}
-
-func CmdCombinedWithBash(cmdIn string) ([]byte, error) {
-	now := time.Now()
-
-	cmd := exec.Command("bash", "-c", cmdIn)
-	cmd.Env = append(os.Environ(), "LANG=POSIX")
-
-	out, err := cmd.CombinedOutput()
-
-	if err != nil {
-		log.Glog.Error("exec", zap.String("cmd", cmdIn), zap.Bool("byBash", true), zap.Error(err), zap.Int64("duration", time.Since(now).Milliseconds()))
-	} else {
-		log.Glog.Debug("exec", zap.String("cmd", cmdIn), zap.Bool("byBash", true), zap.Int64("duration", time.Since(now).Milliseconds()))
 	}
 
 	return bytes.TrimSpace(out), err
