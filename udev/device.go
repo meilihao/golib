@@ -152,7 +152,7 @@ func FromName(subSystem, sysname string) (*UdevDevice, error) {
 func SdDeviceNewFromSubsystemSysname(subSystem, sysname string) (ret *SdDevice, err error) {
 	sysname = strings.ReplaceAll(sysname, "/", "!")
 
-	for _, v := range []string{"/sys/subsystem/", "/sys/bus/"} {
+	for _, v := range []string{"/sys/subsystem/", "/sys/bus/"} { // pci use `/sys/bus/`
 		if ret, err = DeviceStrjoinNew(v, subSystem, "/devices/", sysname); err == nil && ret != nil {
 			return
 		}
@@ -207,6 +207,10 @@ func DeviceSetSyspath(device *SdDevice, syspath string, verify bool) (err error)
 		}
 	}
 	device.Devpath = syspath
+
+	device.GetName()
+	device.GetSubsystem()
+
 	ReadAttrs(device)
 
 	return ReadUevent(device)
