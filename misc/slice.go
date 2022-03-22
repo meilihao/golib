@@ -16,6 +16,20 @@ func IsInStrings(s string, list []string) bool {
 	return false
 }
 
+func IsIncludedAnyStrings(s string, list []string) bool {
+	if len(list) == 0 {
+		return false
+	}
+
+	for i := range list {
+		if strings.Contains(s, list[i]) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func MatchPrefixSlice(name string, ls []string) bool {
 	if len(ls) == 0 {
 		return false
