@@ -375,7 +375,7 @@ func ListPciDevices(fn FilterFn) (devices []*SdDevice, err error) {
 	return
 }
 
-func WithFilterParentChildren(name string) func(p string) bool {
+func WithFilterPciParentChildren(name string) func(p string) bool {
 	return func(p string) bool {
 		tmp, _ := os.Readlink(p)
 		tmp, _ = filepath.Abs(filepath.Join(filepath.Dir(p), tmp))
