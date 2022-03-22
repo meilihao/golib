@@ -22,3 +22,11 @@ func TestFromName(t *testing.T) {
 
 	fmt.Printf("%+v\n", *p)
 }
+
+func TestListDevices(t *testing.T) {
+	ds, err := ListDevices("block", WithFilterDevtype("disk"))
+	assert.Nil(t, err)
+	assert.NotNil(t, ds)
+
+	fmt.Printf("%+v\n", ds[0])
+}
