@@ -296,6 +296,8 @@ func ListDevices(subsystem string, fn FilterFn) (devices []*SdDevice, err error)
 	switch subsystem {
 	case "block":
 		return ListBlockDevices(fn)
+	case "pci":
+		return ListPciDevices(fn)
 	default:
 		err = fmt.Errorf("no subsystem impl: %s", subsystem)
 	}
@@ -320,7 +322,7 @@ func ListBlockDevices(fn FilterFn) (devices []*SdDevice, err error) {
 			Tags:  make([]string, 0, 1),
 		}
 
-		if err = DeviceSetSyspath(r, p, false); err != nil {
+		if err = DeviceSetSyspath(r, p, true); err != nil {
 			return nil, err
 		}
 
@@ -338,5 +340,58 @@ func WithFilterDevtype(name string) func(p string) bool {
 		}
 
 		return strings.Contains(data, fmt.Sprintf("DEVTYPE=%s", name))
+	}
+}
+
+func ListPciDevices(fn FilterFn) (devices []*SdDevice, err error) {
+	ls, err := filepath.Glob("/sys/bus/pci/devices/*")
+	if err != nil {
+		return
+	}
+
+	devices = make([]*SdDevice, 0)
+	for _, p := range ls {
+		if strings.Count(filepath.Base(p), ":") != 2 { // not pic device, example: /sys/devices/pci0000:00/firmware_node
+			continue
+		}
+
+		if !fn(p) {
+			continue
+		}
+
+		r := &SdDevice{
+			Envs:  map[string]string{},
+			Attrs: map[string]string{},
+			Tags:  make([]string, 0, 1),
+		}
+
+		if err = DeviceSetSyspath(r, p, true); err != nil {
+			return nil, err
+		}
+
+		devices = append(devices, r)
+	}
+
+	return
+}
+
+func WithFilterParentChildren(name string) func(p string) bool {
+	return func(p string) bool {
+		tmp, _ := os.Readlink(p)
+		tmp, _ = filepath.Abs(filepath.Join(filepath.Dir(p), tmp))
+
+		// name: `/sys/devices/pci0000:00`
+		// 避免: /sys/bus/pci/devices/0000:02:00.0 -> ../../../devices/pci0000:00/0000:00:1c.1/0000:02:00.0/
+		if !strings.HasPrefix(tmp, name) || strings.Count(tmp, "/") != strings.Count(name, "/")+1 {
+			return false
+		}
+
+		data := file.FileValue(filepath.Join(p, "uevent"))
+		if data == "" {
+			return false
+		}
+
+		return strings.Contains(data, "PCI_ID=") &&
+			strings.Contains(data, "PCI_SLOT_NAME=")
 	}
 }
