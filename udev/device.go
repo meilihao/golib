@@ -113,6 +113,14 @@ func (d *SdDevice) GetIdFilename() string {
 	return d.IdFilename
 }
 
+func (d *SdDevice) GetEnv(key string) string {
+	return d.Envs[key]
+}
+
+func (d *SdDevice) GetAttr(key string) string {
+	return d.Attrs[key]
+}
+
 type UdevDevice struct {
 	Parent *UdevDevice
 	Device *SdDevice
