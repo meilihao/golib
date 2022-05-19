@@ -68,5 +68,7 @@ require (
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	libvirt.org/go/libvirt v1.8003.0 // indirect
+	libvirt.org/go/libvirtxml v1.8003.0 // indirect
 	xorm.io/builder v0.3.9 // indirect
 )
