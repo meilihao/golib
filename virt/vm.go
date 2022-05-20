@@ -27,7 +27,7 @@ type DiskOption struct {
 	Path      string // virt-install 会检查是否已被使用
 	Cache     string
 	Size      uint32 //G, 当Path不存在时, size必须指定
-	BootOrder uint16
+	BootOrder uint16 // 启动磁盘必须设置BootOrder, 否则iso安装系统重启后, 选择本地磁盘启动会找不到启动盘
 }
 
 func (opt *DiskOption) Build(virtioNo, scsiNo *DiskFromNumber) string {
@@ -219,21 +219,24 @@ func BuildVirtIntall(opt *VmOption) string {
 		ops = append(ops, "--network "+v.Build(opt.IsSupportVirtio))
 	}
 
+	var inputBus string
 	diskBus := opt.domainCaps.DiskBus()
 	if misc.IsInStrings("usb", diskBus) {
-		_bus := "usb"
-		if opt.IsSupportVirtio {
-			_bus = "virtio"
-		}
-
+		inputBus = "usb"
+	}
+	if inputBus == "" && opt.IsSupportVirtio {
+		inputBus = "virtio"
+	}
+	if strings.Contains(opt.Arch, "x86") {
+		// 加tablet防止出现鼠标漂移
+		ops = append(ops, "--input type=tablet,bus="+inputBus)
 		// input ps2是默认设备, 没法删除, 即使删除, libvirtd也会自动添加
-		ops = append(ops, "--input type=mouse,bus="+_bus)
-		ops = append(ops, "--input type=keyboard,bus="+_bus)
-		ops = append(ops, "--input type=tablet,bus="+_bus)
-	} else {
 		ops = append(ops, "--input type=mouse")
 		ops = append(ops, "--input type=keyboard")
-		// ops = append(ops, "--input type=tablet") // 手写板
+	} else {
+		ops = append(ops, "--input type=mouse,bus="+inputBus)
+		ops = append(ops, "--input type=keyboard,bus="+inputBus)
+		//	ops = append(ops, "--input type=tablet,bus="+inputBus)
 	}
 
 	virtioNo := NewDiskFromNumber("virtio", 1)

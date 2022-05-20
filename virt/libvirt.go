@@ -2,6 +2,7 @@ package virt
 
 import (
 	"github.com/meilihao/golib/v2/log"
+	"github.com/meilihao/golib/v2/misc"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -408,9 +409,64 @@ type DomainCaps struct {
 }
 
 func (c *DomainCaps) DiskBus() []string {
+	if c.Devices.Disk.Supported != "yes" {
+		return []string{}
+	}
+
 	for _, v := range c.Devices.Disk.Enums {
 		if v.Name == "bus" {
 			return v.Values
+		}
+	}
+
+	return nil
+}
+
+func (c *DomainCaps) Videos() []string {
+	if c.Devices.Video.Supported != "yes" {
+		return []string{}
+	}
+
+	for _, v := range c.Devices.Video.Enums {
+		if v.Name == "modelType" {
+			tmp := make([]string, 0, 3)
+			for _, vv := range v.Values {
+				if misc.IsInStrings(vv, []string{"qxl", "virtioo", "vga"}) {
+					tmp = append(tmp, vv)
+				}
+			}
+
+			return tmp
+		}
+	}
+
+	return nil
+}
+
+func (c *DomainCaps) Graphics() []string {
+	if c.Devices.Graphics.Supported != "yes" {
+		return []string{}
+	}
+
+	for _, v := range c.Devices.Graphics.Enums {
+		if v.Name == "type" {
+			return v.Values
+		}
+	}
+
+	return nil
+}
+
+func (c *DomainCaps) UEFIFirmwares() []string {
+	if c.OS.Supported != "yes" {
+		return []string{}
+	}
+
+	for _, v := range c.OS.Enums {
+		if v.Name == "firmware" && misc.IsInStrings("efi", v.Values) {
+			if c.OS.Loader.Supported == "yes" {
+				return c.OS.Loader.Values
+			}
 		}
 	}
 
