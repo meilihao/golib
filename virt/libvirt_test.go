@@ -22,3 +22,11 @@ func TestGetDomainCaps(t *testing.T) {
 
 	fmt.Println(caps)
 }
+
+func TestLibvirtApi(t *testing.T) {
+	data, err := libvirtConn.GetMaxVcpus("KVM")
+	if err != nil {
+		return
+	}
+	fmt.Println(data)
+}

@@ -23,14 +23,14 @@ import (
 */
 type DiskOption struct {
 	Device    string
-	Bus       string
+	Bus       string // 经验证: xp安装os成功后(已安装virio blk)的系统盘不能从ide转为virtio, 推测是os启动时没有加载virtio驱动, 但新增virtio disk是可以的.
 	Path      string // virt-install 会检查是否已被使用
 	Cache     string
 	Size      uint32 //G, 当Path不存在时, size必须指定
 	BootOrder uint16 // 启动磁盘必须设置BootOrder, 否则iso安装系统重启后, 选择本地磁盘启动会找不到启动盘
 }
 
-func (opt *DiskOption) Build(virtioNo, scsiNo *DiskFromNumber) string {
+func (opt *DiskOption) Build(osFamily OsFamily, osVariant string, ideNo, scsiNo, virtioNo *DiskFromNumber) string {
 	ops := make([]string, 0, 4)
 
 	ops = append(ops, opt.Path)
@@ -41,16 +41,18 @@ func (opt *DiskOption) Build(virtioNo, scsiNo *DiskFromNumber) string {
 	}
 
 	switch opt.Bus {
-	case "scsi", "sata":
+	case BusIde:
+		ops = append(ops, "target.dev="+ideNo.Generate())
+	case BusSata, BusScsi:
 		ops = append(ops, "target.dev="+scsiNo.Generate())
-	case "virtio":
+	case BusVirtio:
 		ops = append(ops, "target.dev="+virtioNo.Generate())
 	}
 
 	switch opt.Device {
-	case "cdrom":
+	case DiskDeviceCdrom:
 		ops = append(ops, "readonly=true")
-	case "disk":
+	case DiskDeviceDisk:
 		if opt.Size > 0 {
 			ops = append(ops, fmt.Sprintf("size=%d", opt.Size))
 		}
@@ -113,7 +115,7 @@ func (opt *NicOption) Build(isSupportVirtio bool) string {
 	ops = append(ops, "mac="+opt.Mac)
 
 	if isSupportVirtio {
-		opt.Model = "virtio"
+		opt.Model = BusVirtio
 	}
 	ops = append(ops, "model="+opt.Model)
 
@@ -121,6 +123,14 @@ func (opt *NicOption) Build(isSupportVirtio bool) string {
 		ops = append(ops, fmt.Sprintf("boot.order=%d", opt.BootOrder))
 	}
 	return strings.Join(ops, ",")
+}
+
+func (opt *NicOption) Validate() error {
+	if !reMacAddr.MatchString(opt.Mac) {
+		return fmt.Errorf("invalid mac: %s", opt.Mac)
+	}
+
+	return nil
 }
 
 // 显卡
@@ -136,22 +146,56 @@ type SoundhwOption struct {
 	Model string
 }
 
+// virt-install --boot help
 type BootOption struct {
-	Loader   string
+	Firmware string
 	BootMenu bool
+
+	Loader       string
+	LoaderSecure string
+	LoaderType   string
 }
 
 func (opt *BootOption) Build() string {
 	opt.BootMenu = true
 
 	ops := make([]string, 0, 4)
-	if opt.Loader == "uefi" {
-		ops = append(ops, "uefi")
+	if opt.Firmware == FirmwareUefi {
+		ops = append(ops, FirmwareUefi)
+
+		if opt.Loader != "" {
+			ops = append(ops, "loader="+opt.Loader)
+			ops = append(ops, "loader.readonly=yes")
+		}
+		if opt.LoaderType != "" {
+			ops = append(ops, "loader.type="+opt.LoaderType)
+		}
+		if opt.LoaderSecure != "" {
+			ops = append(ops, "loader.secure="+opt.LoaderSecure)
+		}
 	}
 	if opt.BootMenu {
 		ops = append(ops, "bootmenu.enable=true")
 	}
+
 	return strings.Join(ops, ",")
+}
+
+func (opt *BootOption) Validate(parent *VmOption) error {
+	if opt == nil || !(opt.Firmware == FirmwareUefi || opt.Firmware == FirmwareBios) {
+		return errors.New("invalid boot firmware")
+	}
+
+	if opt.Firmware == FirmwareBios {
+		return nil
+	}
+
+	f := parent.domainCaps.UEFIFirmwares()
+	if f == nil {
+		return errors.New("failed to get uefi firmware support")
+	}
+
+	return f.Validate(opt.Loader, opt.LoaderType, opt.LoaderSecure)
 }
 
 /*
@@ -163,14 +207,14 @@ type VmOption struct {
 	Name            string
 	Desc            string
 	OsVariant       string
-	OsFamily        string // linux, winnt
+	OsFamily        OsFamily // linux, winnt
 	Arch            string
 	Machine         string // aarch64=virt, x64=q35
+	CpuMode         string
 	CpuModel        string
 	Autostart       bool
 	Memory          int64 // MB
 	Vcpu            uint32
-	CpuMode         string
 	Boot            *BootOption // uefi,mbr
 	ClockOffset     string      // utc/localtime
 	Graphics        *GraphicsOption
@@ -180,6 +224,74 @@ type VmOption struct {
 	Nics            []*NicOption
 	IsSupportVirtio bool
 	domainCaps      *DomainCaps
+}
+
+func (opt *VmOption) Validate() error {
+	if !IsKvmOkForGuest(opt.Arch) {
+		return errors.New("unsupport kvm in guest arch")
+	}
+
+	if !reVmName.MatchString(opt.Name) || misc.IsAllNumbers(opt.Name) {
+		return ErrVmNameInvalid
+	}
+	if len(opt.Desc) > 255 {
+		return errors.New("invalid desc")
+	}
+
+	if !ValidateOsinfo(opt.OsFamily, opt.OsVariant) {
+		return errors.New("invalid osvariant")
+	}
+
+	if !ValidateArchMachine(opt.Arch, opt.Machine) {
+		return errors.New("invalid arch or machine")
+	}
+
+	if !(opt.ClockOffset == ClockOffsetLocal || opt.ClockOffset == ClockOffsetUtc) {
+		return errors.New("invalid clock")
+	}
+
+	if opt.Vcpu > uint32(opt.domainCaps.VcpuMax()) {
+		return fmt.Errorf("over cpu max: %d", opt.domainCaps.VcpuMax())
+	}
+
+	if len(opt.Nics) == 0 {
+		return errors.New("no nic")
+	}
+
+	if len(opt.Disks) == 0 {
+		return errors.New("no disk")
+	}
+
+	var err error
+	if err = opt.Boot.Validate(opt); err != nil {
+		return err
+	}
+
+	for _, v := range opt.Nics {
+		if err = v.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (opt *VmOption) Convert() error {
+	if opt.OsVariant == "winxp" || opt.OsVariant == "win2k" {
+		opt.Machine = "pc" // q35 acpi version太高, xp bluescreen
+	}
+
+	if opt.Arch == ArchAarch64 {
+		opt.Boot.Firmware = FirmwareUefi
+	}
+
+	for _, v := range opt.Disks {
+		if opt.OsFamily == OsFamilyWinnt && (opt.OsVariant == "winxp" || opt.OsVariant == "win2k") {
+			v.Bus = BusIde
+		}
+	}
+
+	return nil
 }
 
 func BuildVirtIntall(opt *VmOption) string {
@@ -200,9 +312,6 @@ func BuildVirtIntall(opt *VmOption) string {
 		ops = append(ops, "--cpu=qemu64")
 	}
 	ops = append(ops, "--arch="+opt.Arch)
-	if opt.Arch == "aarch64" {
-		opt.Boot.Loader = "uefi"
-	}
 
 	ops = append(ops, "--machine="+opt.Machine)
 	if opt.Soundhw != nil {
@@ -221,14 +330,15 @@ func BuildVirtIntall(opt *VmOption) string {
 
 	var inputBus string
 	diskBus := opt.domainCaps.DiskBus()
-	if misc.IsInStrings("usb", diskBus) {
-		inputBus = "usb"
+	if misc.IsInStrings(BusUsb, diskBus) {
+		inputBus = BusUsb
 	}
 	if inputBus == "" && opt.IsSupportVirtio {
-		inputBus = "virtio"
+		inputBus = BusVirtio
 	}
-	if strings.Contains(opt.Arch, "x86") {
+	if strings.Contains(opt.Arch, ArchX86) {
 		// 加tablet防止出现鼠标漂移
+		inputBus = BusUsb // 用virtio还是有较大漂移在xp上
 		ops = append(ops, "--input type=tablet,bus="+inputBus)
 		// input ps2是默认设备, 没法删除, 即使删除, libvirtd也会自动添加
 		ops = append(ops, "--input type=mouse")
@@ -239,10 +349,11 @@ func BuildVirtIntall(opt *VmOption) string {
 		//	ops = append(ops, "--input type=tablet,bus="+inputBus)
 	}
 
-	virtioNo := NewDiskFromNumber("virtio", 1)
-	scsiNo := NewDiskFromNumber("scsi", 1)
+	ideNo := NewDiskFromNumber(BusIde, 1)
+	virtioNo := NewDiskFromNumber(BusVirtio, 1)
+	scsiNo := NewDiskFromNumber(BusScsi, 1)
 	for _, v := range opt.Disks {
-		ops = append(ops, "--disk "+v.Build(virtioNo, scsiNo))
+		ops = append(ops, "--disk "+v.Build(opt.OsFamily, opt.OsVariant, ideNo, scsiNo, virtioNo))
 	}
 
 	ops = append(ops, "--check disk_size=off")
@@ -252,6 +363,21 @@ func BuildVirtIntall(opt *VmOption) string {
 
 // virt-install 自动添加pci control
 func VmDefine(opt *VmOption) (string, error) {
+	caps := GetDomainCapsFromCache(GetEmulatorByArch(opt.Arch), opt.Arch, opt.Machine)
+	if caps == nil {
+		return "", errors.New("missing domain caps")
+	}
+	opt.domainCaps = caps
+
+	err := opt.Convert()
+	if err != nil {
+		return "", err
+	}
+	err = opt.Validate()
+	if err != nil {
+		return "", err
+	}
+
 	s := BuildVirtIntall(opt)
 
 	copt := &cmd.Option{}

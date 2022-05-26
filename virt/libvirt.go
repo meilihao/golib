@@ -1,6 +1,8 @@
 package virt
 
 import (
+	"sync"
+
 	"github.com/meilihao/golib/v2/log"
 	"github.com/meilihao/golib/v2/misc"
 
@@ -13,6 +15,13 @@ import (
 var (
 	LibvirtdUri = "qemu:///system"
 	libvirtConn *libvirt.Connect
+
+	GlobalHostCapsLock sync.Mutex
+	GlobalHostCapsErr  error
+	GlobalHostCaps     *HostCaps
+
+	GlobalDomainCapsLock sync.RWMutex
+	GlobalDomainCaps     = map[string]*DomainCaps{}
 )
 
 func init() {
@@ -21,6 +30,87 @@ func init() {
 	if err != nil {
 		log.Glog.Panic("libvirt conn", zap.Error(err))
 	}
+
+	LoadHostCaps()
+	if GlobalHostCapsErr != nil {
+		log.Glog.Panic(GlobalHostCapsErr.Error())
+	}
+}
+
+func LoadHostCaps() {
+	GlobalHostCapsLock.Lock()
+	defer GlobalHostCapsLock.Unlock()
+
+	GlobalHostCaps, GlobalHostCapsErr = GetHostCaps()
+	if GlobalHostCapsErr != nil {
+		GlobalHostCaps = nil
+	}
+}
+
+func ValidateArchMachine(arch, machine string) bool {
+	ls := GlobalHostCaps.ListGuests()
+	for _, v := range ls {
+		if v.Arch == arch {
+			for j := range v.Machines {
+				if v.Machines[j] == machine {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func GetEmulatorByArch(arch string) string {
+	ls := GlobalHostCaps.ListGuests()
+	for _, v := range ls {
+		if v.Arch == arch {
+			return v.Emulator
+		}
+	}
+
+	return ""
+}
+
+func IsKvmOkForGuest(arch string) bool {
+	ls := GlobalHostCaps.ListGuests()
+	for _, v := range ls {
+		if v.Arch == arch {
+			return misc.IsInStrings("kvm", v.Domains)
+		}
+	}
+
+	return false
+}
+
+func GetDomainCapsFromCache(emulatorbin, arch, machine string) (caps *DomainCaps) {
+	fn := func(emulatorbin, arch, machine string) string {
+		return arch + "|" + machine + "|" + emulatorbin
+	}
+	k := fn(emulatorbin, arch, machine)
+
+	GlobalDomainCapsLock.RLock()
+
+	caps = GlobalDomainCaps[k]
+	if caps != nil {
+		GlobalDomainCapsLock.RUnlock()
+		return
+	}
+
+	GlobalDomainCapsLock.Lock()
+	defer GlobalDomainCapsLock.Unlock()
+
+	var err error
+	caps, err = GetDomainCaps(emulatorbin, arch, machine)
+	if caps != nil {
+		log.Glog.Error("", zap.Error(err))
+		return
+	}
+
+	GlobalDomainCaps[k] = caps
+
+	return
 }
 
 // func GetConnection() (*libvirt.Connect, error) {
@@ -35,21 +125,24 @@ type HostCaps struct {
 	*libvirtxml.Caps
 }
 
-type HostCap struct {
+type Guest struct {
 	Arch     string
 	Emulator string
 	Domains  []string
 	Machines []string
 }
 
-func (c *HostCaps) ListHostCap() []*HostCap {
-	ls := make([]*HostCap, 0, len(c.Guests))
+func (c *HostCaps) ListGuests() []*Guest {
+	ls := make([]*Guest, 0, len(c.Guests))
 	for _, v := range c.Guests {
-		tmp := &HostCap{
+		tmp := &Guest{
 			Arch:     v.Arch.Name,
 			Emulator: v.Arch.Emulator,
 			Machines: make([]string, 0),
 			Domains:  make([]string, 0, len(v.Arch.Domains)),
+		}
+		for _, m := range v.Arch.Machines {
+			tmp.Machines = append(tmp.Domains, m.Name)
 		}
 		for _, d := range v.Arch.Domains {
 			tmp.Domains = append(tmp.Domains, d.Type)
@@ -457,20 +550,61 @@ func (c *DomainCaps) Graphics() []string {
 	return nil
 }
 
-func (c *DomainCaps) UEFIFirmwares() []string {
+type UEFIFirmware struct {
+	Loaders []string
+	Types   []string
+	Secures []string
+}
+
+func (f *UEFIFirmware) Validate(loader, typ, secure string) error {
+	if loader != "" && !misc.IsInStrings(loader, f.Loaders) {
+		return errors.New("invalid uefi loader")
+	}
+	if typ != "" && !misc.IsInStrings(typ, f.Types) {
+		return errors.New("invalid uefi loader type")
+	}
+	if secure != "" && !misc.IsInStrings(secure, f.Secures) {
+		return errors.New("invalid uefi loader secure")
+	}
+
+	return nil
+}
+
+func (c *DomainCaps) UEFIFirmwares() *UEFIFirmware {
 	if c.OS.Supported != "yes" {
-		return []string{}
+		return nil
 	}
 
 	for _, v := range c.OS.Enums {
 		if v.Name == "firmware" && misc.IsInStrings("efi", v.Values) {
 			if c.OS.Loader.Supported == "yes" {
-				return c.OS.Loader.Values
+				tmp := &UEFIFirmware{
+					Loaders: c.OS.Loader.Values,
+				}
+
+				for _, e := range c.OS.Loader.Enums {
+					if e.Name == "type" {
+						if misc.IsInStrings("pflash", e.Values) {
+							tmp.Types = []string{"pflash"}
+						} else {
+							tmp.Types = e.Values
+						}
+					}
+					if e.Name == "secure" {
+						tmp.Secures = e.Values
+					}
+				}
+
+				return tmp
 			}
 		}
 	}
 
 	return nil
+}
+
+func (c *DomainCaps) VcpuMax() uint {
+	return c.VCPU.Max
 }
 
 // only for kvm

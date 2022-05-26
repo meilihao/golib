@@ -35,7 +35,9 @@ type DiskFromNumber struct {
 // start from 1...
 func NewDiskFromNumber(bus string, start uint) *DiskFromNumber {
 	switch bus {
-	case "sata", "scsi":
+	case BusIde:
+		bus = "hd"
+	case BusSata, BusScsi:
 		bus = "sd"
 	default:
 		bus = "vd"

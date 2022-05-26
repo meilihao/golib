@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 
 	"github.com/meilihao/golib/v2/cmd"
 )
@@ -12,6 +13,38 @@ import (
 var (
 	ErrNoOsinfo = errors.New("not found osinfo")
 )
+
+var (
+	GlobalOsinfosLock sync.Mutex
+	GlobalOsinfosErr  error
+	GlobalOsinfos     []OsInfo
+)
+
+func init() {
+	LoadOsinfos()
+}
+
+func LoadOsinfos() {
+	GlobalOsinfosLock.Lock()
+	defer GlobalOsinfosLock.Unlock()
+
+	GlobalOsinfos, GlobalOsinfosErr = GetOsinfos()
+	if GlobalOsinfosErr != nil {
+		GlobalOsinfos = nil
+	}
+}
+
+func ValidateOsinfo(family OsFamily, variant string) bool {
+	tmp := string(family)
+
+	for i := range GlobalOsinfos {
+		if GlobalOsinfos[i].Family == tmp && GlobalOsinfos[i].ShortId == variant {
+			return true
+		}
+	}
+
+	return false
+}
 
 type OsInfo struct {
 	ShortId string
