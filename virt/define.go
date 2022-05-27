@@ -48,3 +48,9 @@ var (
 var (
 	ErrVmNameInvalid = errors.New(`allow "a-z,A-Z,0-9,_,-,:" and not all numbers and len is 1~64`)
 )
+
+// --- libvirt
+const (
+	LibvritVmXmlVarPath  = "/etc/libvirt/qemu/%s.xml"
+	LibvirtAutostartPath = "/etc/libvirt/qemu/autostart"
+)

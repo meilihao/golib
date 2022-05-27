@@ -83,7 +83,7 @@ func TestVmDefine(t *testing.T) {
 		domainCaps:      caps,
 	}
 
-	s, err := VmDefine(opt)
+	s, err := VmDefinePreXml(opt)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, s)
 

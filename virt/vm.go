@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/meilihao/golib/v2/cmd"
@@ -22,12 +24,12 @@ import (
    machine_type = sa.Column(sa.String(255), default=None, nullable=True)
 */
 type DiskOption struct {
-	Device    string
-	Bus       string // 经验证: xp安装os成功后(已安装virio blk)的系统盘不能从ide转为virtio, 推测是os启动时没有加载virtio驱动, 但新增virtio disk是可以的.
-	Path      string // virt-install 会检查是否已被使用
-	Cache     string
-	Size      uint32 //G, 当Path不存在时, size必须指定
-	BootOrder uint16 // 启动磁盘必须设置BootOrder, 否则iso安装系统重启后, 选择本地磁盘启动会找不到启动盘
+	Device    string `json:"device" binding:"device"`
+	Bus       string `json:"bus" binding:"device"`  // found: os installed for xp(virtio driver installed too), can‘t change boot disk form ide to virtio, maybe need some steps like update initramfs with linux. but new disk can use virtio
+	Path      string `json:"path" binding:"device"` // virt-install will check used
+	Cache     string `josn:"cache"`
+	Size      uint32 `json:"size"`      // GB. when path isn't exist, size is must
+	BootOrder uint16 `json:"bootOrder"` // boot disk need BootOrder, otherwise vm isn't found boot disk after os installed
 }
 
 func (opt *DiskOption) Build(osFamily OsFamily, osVariant string, ideNo, scsiNo, virtioNo *DiskFromNumber) string {
@@ -66,10 +68,10 @@ func (opt *DiskOption) Build(osFamily OsFamily, osVariant string, ideNo, scsiNo,
 
 // 指定图形显示相关的配置
 type GraphicsOption struct {
-	Type     string
-	Port     int32
-	Listen   string // 0.0.0.0
-	Password string
+	Type     string `json:"type" binding:"required"`
+	Port     int32  `json:"port" binding:"required"`   // -1
+	Listen   string `json:"listen" binding:"required"` // 0.0.0.0
+	Password string `json:"password"`
 }
 
 func (opt *GraphicsOption) Build() string {
@@ -88,11 +90,11 @@ func (opt *GraphicsOption) Build() string {
 }
 
 type NicOption struct {
-	SourceType  string
-	SourceValue string
-	Mac         string // virt-install 会检查是否已被使用
-	Model       string
-	BootOrder   uint16
+	SourceType  string `json:"sourceTyp" binding:"required"`
+	SourceValue string `json:"sourceValue" binding:"required"`
+	Mac         string `json:"mac" binding:"required"` // virt-install will check is used
+	Model       string `json:"model" binding:"required"`
+	BootOrder   uint16 `json:"bootOrder"`
 }
 
 func (opt *NicOption) Build(isSupportVirtio bool) string {
@@ -133,9 +135,8 @@ func (opt *NicOption) Validate() error {
 	return nil
 }
 
-// 显卡
 type VideoOption struct {
-	Model string // qxl,bochs
+	Model string `json:"model" binding:"required"` // qxl,bochs
 }
 
 func (opt *VideoOption) Build() string {
@@ -143,17 +144,17 @@ func (opt *VideoOption) Build() string {
 }
 
 type SoundhwOption struct {
-	Model string
+	Model string `json:"model" binding:"required"`
 }
 
 // virt-install --boot help
 type BootOption struct {
-	Firmware string
-	BootMenu bool
+	Firmware string `json:"firmware" binding:"required"`
+	BootMenu bool   `json:"bootMenu"`
 
-	Loader       string
-	LoaderSecure string
-	LoaderType   string
+	Loader       string `json:"loader"`
+	LoaderSecure string `json:"loaderSecure"`
+	LoaderType   string `json:"loaderType"`
 }
 
 func (opt *BootOption) Build() string {
@@ -204,26 +205,26 @@ func (opt *BootOption) Validate(parent *VmOption) error {
 --vcpus sockets=2,cores=4,threads=2
 */
 type VmOption struct {
-	Name            string
-	Desc            string
-	OsVariant       string
-	OsFamily        OsFamily // linux, winnt
-	Arch            string
-	Machine         string // aarch64=virt, x64=q35
-	CpuMode         string
-	CpuModel        string
-	Autostart       bool
-	Memory          int64 // MB
-	Vcpu            uint32
-	Boot            *BootOption // uefi,mbr
-	ClockOffset     string      // utc/localtime
-	Graphics        *GraphicsOption
-	Video           *VideoOption
-	Soundhw         *SoundhwOption
-	Disks           []*DiskOption
-	Nics            []*NicOption
-	IsSupportVirtio bool
-	domainCaps      *DomainCaps
+	Name            string          `json:"name" binding:"required"`
+	Desc            string          `json:"desc"`
+	OsVariant       string          `json:"osVariant" binding:"required"`
+	OsFamily        OsFamily        `json:"osFamily" binding:"required"` // linux, winnt
+	Arch            string          `json:"arch" binding:"required"`
+	Machine         string          `json:"machine" binding:"required"` // aarch64=virt, x64=q35
+	CpuMode         string          `json:"cpuMode" binding:"required"`
+	CpuModel        string          `json:"cpuModel" binding:"required"`
+	Autostart       bool            `json:"autostart"`
+	Memory          uint64          `json:"memory" binding:"required"` // MB
+	Vcpu            uint            `json:"vcpu" binding:"required"`
+	Boot            *BootOption     `json:"boot" binding:"required"`        // uefi,mbr
+	ClockOffset     string          `json:"clockOffset" binding:"required"` // utc/localtime
+	Graphics        *GraphicsOption `json:"graphics"  binding:"required"`
+	Video           *VideoOption    `json:"video"  binding:"required"`
+	Soundhw         *SoundhwOption  `json:"soundhw"`
+	Disks           []*DiskOption   `json:"disks"  binding:"required"`
+	Nics            []*NicOption    `json:"nics"  binding:"required"`
+	IsSupportVirtio bool            `json:"-"`
+	domainCaps      *DomainCaps     `json:"-"`
 }
 
 func (opt *VmOption) Validate() error {
@@ -250,7 +251,7 @@ func (opt *VmOption) Validate() error {
 		return errors.New("invalid clock")
 	}
 
-	if opt.Vcpu > uint32(opt.domainCaps.VcpuMax()) {
+	if opt.Vcpu > opt.domainCaps.VcpuMax() {
 		return fmt.Errorf("over cpu max: %d", opt.domainCaps.VcpuMax())
 	}
 
@@ -267,10 +268,24 @@ func (opt *VmOption) Validate() error {
 		return err
 	}
 
+	var foundBootDevice bool
+	for _, v := range opt.Disks {
+		if !foundBootDevice && v.BootOrder > 0 {
+			foundBootDevice = true
+		}
+	}
+
 	for _, v := range opt.Nics {
 		if err = v.Validate(); err != nil {
 			return err
 		}
+
+		if !foundBootDevice && v.BootOrder > 0 {
+			foundBootDevice = true
+		}
+	}
+	if !foundBootDevice {
+		return errors.New("missing boot device")
 	}
 
 	return nil
@@ -361,8 +376,8 @@ func BuildVirtIntall(opt *VmOption) string {
 	return strings.Join(ops, " ")
 }
 
-// virt-install 自动添加pci control
-func VmDefine(opt *VmOption) (string, error) {
+// virt-install will auto insert pci control
+func VmDefinePreXml(opt *VmOption) (string, error) {
 	caps := GetDomainCapsFromCache(GetEmulatorByArch(opt.Arch), opt.Arch, opt.Machine)
 	if caps == nil {
 		return "", errors.New("missing domain caps")
@@ -392,6 +407,26 @@ func VmDefine(opt *VmOption) (string, error) {
 	}
 
 	return tmp, nil
+}
+
+func VmCreate(opt *VmOption) error {
+	s, err := VmDefinePreXml(opt)
+	if err != nil {
+		return err
+	}
+
+	vm, err := libvirtConn.DomainDefineXML(s)
+	if err != nil {
+		return err
+	}
+	vm.Destroy()
+
+	if opt.Autostart {
+		p := fmt.Sprintf(LibvritVmXmlVarPath, opt.Name)
+		os.Symlink(p, filepath.Join(LibvirtAutostartPath, filepath.Base(p)))
+	}
+
+	return nil
 }
 
 const (

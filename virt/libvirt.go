@@ -1,6 +1,7 @@
 package virt
 
 import (
+	"os"
 	"sync"
 
 	"github.com/meilihao/golib/v2/log"
@@ -25,7 +26,11 @@ var (
 )
 
 func init() {
-	var err error
+	err := os.MkdirAll(LibvirtAutostartPath, 0755)
+	if err != nil {
+		log.Glog.Panic("libvirt create autostart", zap.Error(err))
+	}
+
 	libvirtConn, err = libvirt.NewConnect(LibvirtdUri)
 	if err != nil {
 		log.Glog.Panic("libvirt conn", zap.Error(err))
