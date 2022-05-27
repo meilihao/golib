@@ -4,6 +4,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/meilihao/golib/v2/file"
 	"github.com/meilihao/golib/v2/log"
 	"github.com/meilihao/golib/v2/misc"
 
@@ -26,9 +27,11 @@ var (
 )
 
 func init() {
-	err := os.MkdirAll(LibvirtAutostartPath, 0755)
-	if err != nil {
-		log.Glog.Panic("libvirt create autostart", zap.Error(err))
+	var err error
+	if !file.IsDir(LibvirtAutostartPath) {
+		if err = os.MkdirAll(LibvirtAutostartPath, 0755); err != nil {
+			log.Glog.Panic("libvirt create autostart", zap.Error(err))
+		}
 	}
 
 	libvirtConn, err = libvirt.NewConnect(LibvirtdUri)
@@ -102,6 +105,7 @@ func GetDomainCapsFromCache(emulatorbin, arch, machine string) (caps *DomainCaps
 		GlobalDomainCapsLock.RUnlock()
 		return
 	}
+	GlobalDomainCapsLock.RUnlock()
 
 	GlobalDomainCapsLock.Lock()
 	defer GlobalDomainCapsLock.Unlock()
@@ -143,11 +147,12 @@ func (c *HostCaps) ListGuests() []*Guest {
 		tmp := &Guest{
 			Arch:     v.Arch.Name,
 			Emulator: v.Arch.Emulator,
-			Machines: make([]string, 0),
+			Machines: make([]string, 0, len(v.Arch.Machines)),
 			Domains:  make([]string, 0, len(v.Arch.Domains)),
 		}
+
 		for _, m := range v.Arch.Machines {
-			tmp.Machines = append(tmp.Domains, m.Name)
+			tmp.Machines = append(tmp.Machines, m.Name)
 		}
 		for _, d := range v.Arch.Domains {
 			tmp.Domains = append(tmp.Domains, d.Type)
