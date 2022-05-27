@@ -19,9 +19,7 @@ func TestReloadVm(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestVmDefine(t *testing.T) {
-	caps, _ := GetDomainCaps("/usr/bin/qemu-system-x86_64", "x86_64", "q35")
-
+func TestVmDefinePreXml(t *testing.T) {
 	opt := &VmOption{
 		Name:      "xxx",
 		Desc:      "xxx_desc",
@@ -34,7 +32,7 @@ func TestVmDefine(t *testing.T) {
 		Vcpu:      4,
 		CpuMode:   "host-model",
 		Boot: &BootOption{
-			Loader: "uefi",
+			Firmware: "uefi",
 		},
 		ClockOffset: "localtime",
 		Graphics: &GraphicsOption{
@@ -80,7 +78,6 @@ func TestVmDefine(t *testing.T) {
 			},
 		},
 		IsSupportVirtio: true,
-		domainCaps:      caps,
 	}
 
 	s, err := VmDefinePreXml(opt)
