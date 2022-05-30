@@ -1,7 +1,11 @@
 package virt
 
 import (
+	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/meilihao/golib/v2/file"
@@ -112,7 +116,7 @@ func GetDomainCapsFromCache(emulatorbin, arch, machine string) (caps *DomainCaps
 
 	var err error
 	caps, err = GetDomainCaps(emulatorbin, arch, machine)
-	if caps != nil {
+	if err != nil {
 		log.Glog.Error("", zap.Error(err))
 		return
 	}
@@ -135,10 +139,10 @@ type HostCaps struct {
 }
 
 type Guest struct {
-	Arch     string
-	Emulator string
-	Domains  []string
-	Machines []string
+	Arch     string   `json:"arch"`
+	Emulator string   `json:"emulator"`
+	Domains  []string `json:"domains"`
+	Machines []string `json:"machines"`
 }
 
 func (c *HostCaps) ListGuests() []*Guest {
@@ -507,6 +511,16 @@ func GetHostCaps() (caps *HostCaps, err error) {
 	return &HostCaps{Caps: tmp}, nil
 }
 
+type HostCapsInfo struct {
+	Guests []*Guest `json:"guests"`
+}
+
+func GetHostCapsInfo() (*HostCapsInfo, error) {
+	return &HostCapsInfo{
+		Guests: GlobalHostCaps.ListGuests(),
+	}, nil
+}
+
 type DomainCaps struct {
 	*libvirtxml.DomainCaps
 }
@@ -518,7 +532,7 @@ func (c *DomainCaps) DiskBus() []string {
 
 	for _, v := range c.Devices.Disk.Enums {
 		if v.Name == "bus" {
-			return v.Values
+			return misc.ExcludeStrings(v.Values, []string{"fdc"})
 		}
 	}
 
@@ -534,7 +548,7 @@ func (c *DomainCaps) Videos() []string {
 		if v.Name == "modelType" {
 			tmp := make([]string, 0, 3)
 			for _, vv := range v.Values {
-				if misc.IsInStrings(vv, []string{"qxl", "virtioo", "vga"}) {
+				if misc.IsInStrings(vv, []string{"qxl", "virtio", "vga"}) {
 					tmp = append(tmp, vv)
 				}
 			}
@@ -553,7 +567,14 @@ func (c *DomainCaps) Graphics() []string {
 
 	for _, v := range c.Devices.Graphics.Enums {
 		if v.Name == "type" {
-			return v.Values
+			tmp := make([]string, 0, 2)
+			for _, vv := range v.Values {
+				if misc.IsInStrings(vv, []string{"vnc", "spice"}) {
+					tmp = append(tmp, vv)
+				}
+			}
+
+			return tmp
 		}
 	}
 
@@ -561,9 +582,9 @@ func (c *DomainCaps) Graphics() []string {
 }
 
 type UEFIFirmware struct {
-	Loaders []string
-	Types   []string
-	Secures []string
+	Loaders []string `json:"loaders"`
+	Types   []string `json:"types"`
+	Secures []string `json:"secures"`
 }
 
 func (f *UEFIFirmware) Validate(loader, typ, secure string) error {
@@ -869,4 +890,79 @@ func GetDomainCaps(emulatorbin, arch, machine string) (caps *DomainCaps, err err
 	}
 
 	return &DomainCaps{DomainCaps: tmp}, nil
+}
+
+type DomainCapsInfo struct {
+	IsSupportVirtio bool          `json:"isSupportVirtio"`
+	VcpuMax         uint          `json:"vcpuMax"`
+	UEFI            *UEFIFirmware `json:"uefi"`
+	Videos          []string      `json:"videos"`
+	Graphics        []string      `json:"graphics"`
+	DiskBus         []string      `json:"diskBus"`
+	Nics            []string      `json:"nics"`
+}
+
+func GetDomainCapsInfo(emulatorbin, arch, machine, osVariant string) (*DomainCapsInfo, error) {
+	caps := GetDomainCapsFromCache(emulatorbin, arch, machine)
+	if caps == nil {
+		return nil, errors.New("no domain caps")
+	}
+
+	info := &DomainCapsInfo{
+		VcpuMax:  caps.VcpuMax(),
+		UEFI:     caps.UEFIFirmwares(),
+		Videos:   caps.Videos(),
+		Graphics: caps.Graphics(),
+		DiskBus:  caps.DiskBus(),
+		Nics:     GetNicModels(emulatorbin, arch, machine, osVariant),
+	}
+	info.IsSupportVirtio = IsSupportsVirtio(arch, machine) && misc.IsInStrings("virtio", info.DiskBus)
+
+	return info, nil
+}
+
+// virtmanager: interface_recommended_models
+func GetNicModels(emulatorbin, arch, machine, osVariant string) []string {
+	ls := []string{"defualt"}
+	if IsSupportsVirtionetByOsVariant(osVariant) || IsSupportsVirtio(arch, machine) {
+		ls = append(ls, "virtio")
+	}
+
+	if !(arch == "i686" || arch == "x86_64") {
+		return ls
+	}
+
+	if strings.Contains(machine, "q35") {
+		ls = append(ls, "e1000e")
+	} else {
+		ls = append(ls, "e1000")
+	}
+
+	return ls
+}
+
+func IsSupportsVirtionetByOsVariant(osVariant string) bool {
+	var id string
+	for i := range GlobalOsinfos {
+		if GlobalOsinfos[i].ShortId == osVariant {
+			id = GlobalOsinfos[i].Id
+			break
+		}
+	}
+
+	if id == "" {
+		return false
+	}
+
+	u, err := url.Parse(id)
+	if err != nil {
+		return false
+	}
+
+	tmp := strings.Replace(strings.TrimPrefix(u.Path, "/"), "/", "-", 1)
+	fmt.Println(filepath.Join("/usr/share/osinfo/os", u.Host, tmp+".xml"))
+	data := file.FileValue(filepath.Join("/usr/share/osinfo/os", u.Host, tmp+".xml"))
+
+	// virtio-net/virtio1.0-net
+	return strings.Contains(data, "http://pcisig.com/pci/1af4/1000") || strings.Contains(data, "http://pcisig.com/pci/1af4/1041")
 }

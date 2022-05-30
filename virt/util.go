@@ -10,7 +10,7 @@ import (
 
 // from webvirtcloud:is_supports_virtio, now
 // virtinst:_supports_virtio
-func is_supports_virtio(arch, machine string) bool {
+func IsSupportsVirtio(arch, machine string) bool {
 	if misc.IsInStrings(arch, []string{"x86_64", "i686"}) {
 		return true
 	}

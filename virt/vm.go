@@ -301,6 +301,10 @@ func (opt *VmOption) Convert() error {
 	}
 
 	for _, v := range opt.Disks {
+		if v.Device == DiskDeviceCdrom {
+			v.Bus = BusSata
+		}
+
 		if opt.OsFamily == OsFamilyWinnt && (opt.OsVariant == "winxp" || opt.OsVariant == "win2k") {
 			v.Bus = BusIde
 		}
@@ -355,7 +359,7 @@ func BuildVirtIntall(opt *VmOption) string {
 		// 加tablet防止出现鼠标漂移
 		inputBus = BusUsb // 用virtio还是有较大漂移在xp上
 		ops = append(ops, "--input type=tablet,bus="+inputBus)
-		// input ps2是默认设备, 没法删除, 即使删除, libvirtd也会自动添加
+		// input ps2 is default device, libvirtd will add it auto when deleted
 		ops = append(ops, "--input type=mouse")
 		ops = append(ops, "--input type=keyboard")
 	} else {

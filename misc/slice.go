@@ -16,6 +16,21 @@ func IsInStrings(s string, list []string) bool {
 	return false
 }
 
+func ExcludeStrings(in, ex []string) []string {
+	if len(in) == 0 || len(ex) == 0 {
+		return in
+	}
+
+	ls := make([]string, 0)
+	for _, v := range in {
+		if IsInStrings(v, ex) {
+			continue
+		}
+		ls = append(ls, v)
+	}
+	return ls
+}
+
 func IsIncludedAnyStrings(s string, list []string) bool {
 	if len(list) == 0 {
 		return false

@@ -7,7 +7,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/go-version"
 	"github.com/meilihao/golib/v2/cmd"
+	"github.com/meilihao/golib/v2/misc"
 )
 
 var (
@@ -18,7 +20,22 @@ var (
 	GlobalOsinfosLock sync.Mutex
 	GlobalOsinfosErr  error
 	GlobalOsinfos     []OsInfo
+
+	OsVersionFilters = map[string]func(in string) bool{
+		"winnt": OsVersionFilterBtWinnt,
+	}
 )
+
+func OsVersionFilterBtWinnt(in string) bool {
+	v, _ := version.NewVersion(in)
+	c, _ := version.NewConstraint(">= 5.0")
+
+	if v == nil || c == nil {
+		return false
+	}
+
+	return c.Check(v)
+}
 
 func init() {
 	LoadOsinfos()
@@ -47,11 +64,11 @@ func ValidateOsinfo(family OsFamily, variant string) bool {
 }
 
 type OsInfo struct {
-	ShortId string
-	Name    string
-	Version string
-	Family  string
-	Id      string
+	ShortId string `json:"shortId"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Family  string `json:"family"`
+	Id      string `json:"id"`
 }
 
 func GetOsinfos() (ls []OsInfo, err error) {
@@ -66,6 +83,7 @@ func GetOsinfos() (ls []OsInfo, err error) {
 	return ParseOsinfos(string(out))
 }
 
+// winnt > = 5.0
 func ParseOsinfos(raw string) (ls []OsInfo, err error) {
 	var lines []string
 
@@ -88,6 +106,7 @@ func ParseOsinfos(raw string) (ls []OsInfo, err error) {
 	lines = lines[idx:]
 	ls = make([]OsInfo, 0, len(lines))
 	var tmp []string
+	var f func(in string) bool
 	for i := range lines {
 		tmp = strings.Split(lines[i], "|")
 		if len(tmp) != 5 {
@@ -95,6 +114,10 @@ func ParseOsinfos(raw string) (ls []OsInfo, err error) {
 		}
 		for j := range tmp {
 			tmp[j] = strings.TrimSpace(tmp[j])
+		}
+
+		if f = OsVersionFilters[tmp[3]]; f != nil && !f(tmp[2]) {
+			continue
 		}
 
 		ls = append(ls, OsInfo{
@@ -107,4 +130,27 @@ func ParseOsinfos(raw string) (ls []OsInfo, err error) {
 	}
 
 	return
+}
+
+type OsinfoFilter struct {
+	OsFamilies []string `json:"osFamilies"` // empty return all. common is "linux,winnt"
+}
+
+func GetOsinfosWithFilter(f *OsinfoFilter) (ls []OsInfo, err error) {
+	if GlobalOsinfosErr != nil {
+		return make([]OsInfo, 0), GlobalOsinfosErr
+	}
+
+	if len(f.OsFamilies) == 0 {
+		return GlobalOsinfos, nil
+	}
+
+	ls = make([]OsInfo, 0)
+	for _, v := range GlobalOsinfos {
+		if misc.IsInStrings(v.Family, f.OsFamilies) {
+			ls = append(ls, v)
+		}
+	}
+
+	return ls, nil
 }

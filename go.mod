@@ -3,6 +3,7 @@ module github.com/meilihao/golib/v2
 go 1.17
 
 require (
+	github.com/davecgh/go-spew v1.1.1
 	github.com/gin-gonic/gin v1.7.4
 	github.com/go-jose/go-jose/v3 v3.0.0
 	github.com/go-playground/locales v0.14.0
@@ -12,6 +13,7 @@ require (
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gobwas/ws v1.1.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
+	github.com/hashicorp/go-version v1.5.0
 	github.com/json-iterator/go v1.1.11
 	github.com/meilihao/goi18n/v2 v2.0.0-20210819070001-f920212e30f1
 	github.com/meilihao/water v0.0.0-20210816004212-f2b76e95b1ff
@@ -31,13 +33,14 @@ require (
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/ini.v1 v1.62.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	libvirt.org/go/libvirt v1.8003.0
+	libvirt.org/go/libvirtxml v1.8003.0
 	xorm.io/xorm v1.2.2
 )
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
@@ -60,6 +63,7 @@ require (
 	go.opentelemetry.io/proto/otlp v0.9.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
+	golang.org/x/mod v0.5.1 // indirect
 	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781 // indirect
 	golang.org/x/sys v0.0.0-20210806184541-e5e7981a1069 // indirect
 	golang.org/x/text v0.3.6 // indirect
@@ -68,7 +72,5 @@ require (
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	libvirt.org/go/libvirt v1.8003.0 // indirect
-	libvirt.org/go/libvirtxml v1.8003.0 // indirect
 	xorm.io/builder v0.3.9 // indirect
 )
