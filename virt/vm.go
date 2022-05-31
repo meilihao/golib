@@ -348,7 +348,7 @@ func BuildVirtIntall(opt *VmOption) string {
 		ops = append(ops, "--description="+opt.Desc)
 	}
 	ops = append(ops, "--os-variant="+opt.OsVariant)
-	ops = append(ops, fmt.Sprintf("--memory %d", opt.Memory))
+	ops = append(ops, fmt.Sprintf(fmt.Sprintf("--memory memory=%d,maxmemory=%d", opt.Memory, opt.Memory)))
 	ops = append(ops, fmt.Sprintf("--vcpus %d", opt.Vcpu))
 	if opt.CpuMode == "host-passthrough" {
 		ops = append(ops, "--cpu=host-passthrough")
@@ -788,6 +788,73 @@ func RemoveNic(r *RemoveNicReq) error {
 
 	opt := &cmd.Option{}
 	_, err = cmd.CmdCombinedBashWithCtx(context.TODO(), opt,
+		strings.Join(parts, " "),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type VmChangeCommonReq struct {
+	Domain string `json:"domain" binding:"required"`
+	//CpuMode  string      `json:"cpuMode" binding:"required"`
+	//CpuModel string      `json:"cpuModel"`
+	Memory uint64 `json:"memory" binding:"required"` // MB
+	Vcpu   uint   `json:"vcpu" binding:"required"`
+	//Boot     *BootOption `json:"boot" binding:"required"` // uefi,mbr
+}
+
+func VmChangeCommon(r *VmChangeCommonReq) error {
+	dom, err := FindVm(r.Domain)
+	if err != nil {
+		return err
+	}
+	defer dom.Free()
+
+	state, _, err := dom.GetState()
+	if err != nil {
+		return err
+	}
+
+	if state == libvirt.DOMAIN_RUNNING || state == libvirt.DOMAIN_PAUSED {
+		return errors.New("vm is running or paused")
+	}
+
+	var tmp [][]string
+	if r.Vcpu > 0 {
+		tmp = append(tmp, []string{fmt.Sprintf("--vcpus %d", r.Vcpu)})
+	}
+	if r.Memory > 0 {
+		tmp = append(tmp, []string{fmt.Sprintf("--memory memory=%d,maxmemory=%d", r.Memory, r.Memory)})
+	}
+
+	if len(tmp) == 0 {
+		return errors.New("vm nothint to change")
+	}
+
+	for _, v := range tmp {
+		if err = VmXmlEdit(r.Domain, v); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// virt-xml --edit only need one option
+func VmXmlEdit(domain string, ls []string) error {
+	parts := []string{
+		"virt-xml",
+		domain,
+		"--edit",
+	}
+
+	parts = append(parts, ls...)
+
+	opt := &cmd.Option{}
+	_, err := cmd.CmdCombinedBashWithCtx(context.TODO(), opt,
 		strings.Join(parts, " "),
 	)
 	if err != nil {

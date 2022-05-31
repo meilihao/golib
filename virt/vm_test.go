@@ -141,3 +141,13 @@ func TestRemoveNic(t *testing.T) {
 	err := RemoveNic(r)
 	assert.Nil(t, err)
 }
+
+func TestVmChangeCommon(t *testing.T) {
+	r := &VmChangeCommonReq{
+		Domain: "xxx",
+		Memory: 3072,
+		Vcpu:   3,
+	}
+	err := VmChangeCommon(r)
+	assert.Nil(t, err)
+}
