@@ -10,7 +10,9 @@ import (
 
 	"github.com/meilihao/golib/v2/cmd"
 	"github.com/meilihao/golib/v2/file"
+	"github.com/meilihao/golib/v2/log"
 	"github.com/meilihao/golib/v2/misc"
+	"go.uber.org/zap"
 )
 
 /*
@@ -212,7 +214,7 @@ type VmOption struct {
 	Arch            string          `json:"arch" binding:"required"`
 	Machine         string          `json:"machine" binding:"required"` // aarch64=virt, x64=q35
 	CpuMode         string          `json:"cpuMode" binding:"required"`
-	CpuModel        string          `json:"cpuModel" binding:"required"`
+	CpuModel        string          `json:"cpuModel"`
 	Autostart       bool            `json:"autostart"`
 	Memory          uint64          `json:"memory" binding:"required"` // MB
 	Vcpu            uint            `json:"vcpu" binding:"required"`
@@ -223,6 +225,7 @@ type VmOption struct {
 	Soundhw         *SoundhwOption  `json:"soundhw"`
 	Disks           []*DiskOption   `json:"disks"  binding:"required"`
 	Nics            []*NicOption    `json:"nics"  binding:"required"`
+	IsDryRun        bool            `json:"isDryRun"`
 	IsSupportVirtio bool            `json:"-"`
 	domainCaps      *DomainCaps     `json:"-"`
 }
@@ -417,6 +420,11 @@ func VmCreate(opt *VmOption) error {
 	s, err := VmDefinePreXml(opt)
 	if err != nil {
 		return err
+	}
+
+	if opt.IsDryRun {
+		log.Glog.Info("vm create dryrun", zap.String("xml", s))
+		return nil
 	}
 
 	vm, err := libvirtConn.DomainDefineXML(s)

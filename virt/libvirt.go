@@ -1,7 +1,6 @@
 package virt
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -900,6 +899,7 @@ type DomainCapsInfo struct {
 	Graphics        []string      `json:"graphics"`
 	DiskBus         []string      `json:"diskBus"`
 	Nics            []string      `json:"nics"`
+	Sounds          []string      `json:"sounds"`
 }
 
 func GetDomainCapsInfo(emulatorbin, arch, machine, osVariant string) (*DomainCapsInfo, error) {
@@ -915,6 +915,7 @@ func GetDomainCapsInfo(emulatorbin, arch, machine, osVariant string) (*DomainCap
 		Graphics: caps.Graphics(),
 		DiskBus:  caps.DiskBus(),
 		Nics:     GetNicModels(emulatorbin, arch, machine, osVariant),
+		Sounds:   []string{"ich6", "ich9", "ac97"}, // from virtmanager: sound_recommended_models
 	}
 	info.IsSupportVirtio = IsSupportsVirtio(arch, machine) && misc.IsInStrings("virtio", info.DiskBus)
 
@@ -960,7 +961,6 @@ func IsSupportsVirtionetByOsVariant(osVariant string) bool {
 	}
 
 	tmp := strings.Replace(strings.TrimPrefix(u.Path, "/"), "/", "-", 1)
-	fmt.Println(filepath.Join("/usr/share/osinfo/os", u.Host, tmp+".xml"))
 	data := file.FileValue(filepath.Join("/usr/share/osinfo/os", u.Host, tmp+".xml"))
 
 	// virtio-net/virtio1.0-net
