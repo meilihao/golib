@@ -145,7 +145,7 @@ func (opt *VideoOption) Build() string {
 	return "model=" + opt.Model
 }
 
-type SoundhwOption struct {
+type SoundOption struct {
 	Model string `json:"model" binding:"required"`
 }
 
@@ -222,7 +222,7 @@ type VmOption struct {
 	ClockOffset     string          `json:"clockOffset" binding:"required"` // utc/localtime
 	Graphics        *GraphicsOption `json:"graphics"  binding:"required"`
 	Video           *VideoOption    `json:"video"  binding:"required"`
-	Soundhw         *SoundhwOption  `json:"soundhw"`
+	Sound           *SoundOption    `json:"sound"`
 	Disks           []*DiskOption   `json:"disks"  binding:"required"`
 	Nics            []*NicOption    `json:"nics"  binding:"required"`
 	IsDryRun        bool            `json:"isDryRun"`
@@ -336,8 +336,8 @@ func BuildVirtIntall(opt *VmOption) string {
 	ops = append(ops, "--arch="+opt.Arch)
 
 	ops = append(ops, "--machine="+opt.Machine)
-	if opt.Soundhw != nil {
-		ops = append(ops, "--soundhw "+opt.Soundhw.Model)
+	if opt.Sound != nil {
+		ops = append(ops, "--soundhw "+opt.Sound.Model)
 	}
 
 	ops = append(ops, "--clock offset="+opt.ClockOffset)
