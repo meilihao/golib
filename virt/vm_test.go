@@ -117,3 +117,27 @@ func TestRemoveDisk(t *testing.T) {
 	err := RemoveDisk(r)
 	assert.Nil(t, err)
 }
+
+func TestAddNic(t *testing.T) {
+	r := &AddNicReq{
+		Domain: "xxx",
+		Nic: &NicOption{
+			SourceType:  "bridge",
+			SourceValue: "virbr0",
+			Mac:         "52:54:00:f6:b8:9f",
+			Model:       "virtio",
+		},
+		IsHotunplug: false,
+	}
+	err := AddNic(r)
+	assert.Nil(t, err)
+}
+
+func TestRemoveNic(t *testing.T) {
+	r := &RemoveNicReq{
+		Domain: "xxx",
+		Mac:    "52:54:00:f6:b8:9f",
+	}
+	err := RemoveNic(r)
+	assert.Nil(t, err)
+}

@@ -122,7 +122,7 @@ type NicOption struct {
 	BootOrder   uint16 `json:"bootOrder"`
 }
 
-func (opt *NicOption) Build(isSupportVirtio bool) string {
+func (opt *NicOption) Build() string {
 	ops := make([]string, 0, 4)
 
 	if opt.SourceType == "none" {
@@ -141,9 +141,6 @@ func (opt *NicOption) Build(isSupportVirtio bool) string {
 	}
 	ops = append(ops, "mac="+opt.Mac)
 
-	if isSupportVirtio {
-		opt.Model = BusVirtio
-	}
 	ops = append(ops, "model="+opt.Model)
 
 	if opt.BootOrder > 0 {
@@ -374,7 +371,7 @@ func BuildVirtIntall(opt *VmOption) string {
 	ops = append(ops, "--boot "+opt.Boot.Build())
 
 	for _, v := range opt.Nics {
-		ops = append(ops, "--network "+v.Build(opt.IsSupportVirtio))
+		ops = append(ops, "--network "+v.Build())
 	}
 
 	var inputBus string
@@ -654,6 +651,140 @@ func RemoveDisk(r *RemoveDiskReq) error {
 		r.Domain,
 	}
 	parts = append(parts, "--remove-device", "--disk", "target="+r.TargetDev)
+
+	opt := &cmd.Option{}
+	_, err = cmd.CmdCombinedBashWithCtx(context.TODO(), opt,
+		strings.Join(parts, " "),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type AddNicReq struct {
+	Domain      string     `json:"domain" binding:"required"`
+	Nic         *NicOption `json:"nic" binding:"required"`
+	IsHotunplug bool       `json:"isHotunplug" binding:"required"`
+}
+
+func AddNic(r *AddNicReq) error {
+	if err := r.Nic.Validate(); err != nil {
+		return err
+	}
+
+	dom, err := FindVm(r.Domain)
+	if err != nil {
+		return err
+	}
+	defer dom.Free()
+
+	state, _, err := dom.GetState()
+	if err != nil {
+		return err
+	}
+
+	if state == libvirt.DOMAIN_RUNNING || state == libvirt.DOMAIN_PAUSED {
+		r.IsHotunplug = true
+	}
+
+	tmp, err := dom.GetXMLDesc(0)
+	if err != nil {
+		return err
+	}
+
+	doc := &libvirtxml.Domain{}
+	if err = doc.Unmarshal(tmp); err != nil {
+		return err
+	}
+
+	if r.Nic.Mac != "" {
+		var isFound bool
+		nics := doc.Devices.Interfaces
+		for _, v := range nics {
+			if v.MAC.Address == r.Nic.Mac {
+				isFound = true
+				break
+			}
+		}
+		if isFound {
+			return errors.New("nic mac is exsist")
+		}
+	}
+
+	if r.Nic.Mac == "" {
+		r.Nic.Mac = GenerateRandomMac()
+	}
+
+	parts := []string{
+		"virt-xml",
+		r.Domain,
+	}
+	if r.IsHotunplug {
+		parts = append(parts, "--update")
+	}
+	parts = append(parts, "--add-device", "--network", r.Nic.Build())
+
+	opt := &cmd.Option{}
+	_, err = cmd.CmdCombinedBashWithCtx(context.TODO(), opt,
+		strings.Join(parts, " "),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type RemoveNicReq struct {
+	Domain string `json:"domain" binding:"required"`
+	Mac    string `json:"mac" binding:"required"`
+}
+
+func RemoveNic(r *RemoveNicReq) error {
+	dom, err := FindVm(r.Domain)
+	if err != nil {
+		return err
+	}
+	defer dom.Free()
+
+	state, _, err := dom.GetState()
+	if err != nil {
+		return err
+	}
+
+	if state == libvirt.DOMAIN_RUNNING || state == libvirt.DOMAIN_PAUSED {
+		return errors.New("vm is running or paused")
+	}
+
+	tmp, err := dom.GetXMLDesc(0)
+	if err != nil {
+		return err
+	}
+
+	doc := &libvirtxml.Domain{}
+	if err = doc.Unmarshal(tmp); err != nil {
+		return err
+	}
+
+	var isFound bool
+	nics := doc.Devices.Interfaces
+	for _, v := range nics {
+		if v.MAC.Address == r.Mac {
+			isFound = true
+			break
+		}
+	}
+	if !isFound {
+		return errors.New("nic mac isn't exsist")
+	}
+
+	parts := []string{
+		"virt-xml",
+		r.Domain,
+	}
+	parts = append(parts, "--remove-device", "--network", "mac="+r.Mac)
 
 	opt := &cmd.Option{}
 	_, err = cmd.CmdCombinedBashWithCtx(context.TODO(), opt,
