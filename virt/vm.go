@@ -13,6 +13,8 @@ import (
 	"github.com/meilihao/golib/v2/log"
 	"github.com/meilihao/golib/v2/misc"
 	"go.uber.org/zap"
+	"libvirt.org/go/libvirt"
+	"libvirt.org/go/libvirtxml"
 )
 
 /*
@@ -26,15 +28,16 @@ import (
    machine_type = sa.Column(sa.String(255), default=None, nullable=True)
 */
 type DiskOption struct {
-	Device    string `json:"device" binding:"device"`
-	Bus       string `json:"bus" binding:"device"`  // found: os installed for xp(virtio driver installed too), can‘t change boot disk form ide to virtio, maybe need some steps like update initramfs with linux. but new disk can use virtio
-	Path      string `json:"path" binding:"device"` // virt-install will check used
+	Device    string `json:"device" binding:"required"`
+	Bus       string `json:"bus" binding:"required"`  // found: os installed for xp(virtio driver installed too), can‘t change boot disk form ide to virtio, maybe need some steps like update initramfs with linux. but new disk can use virtio
+	Path      string `json:"path" binding:"required"` // virt-install will check used
+	TargetDev string `json:"targetDev"`
 	Cache     string `josn:"cache"`
 	Size      uint32 `json:"size"`      // GB. when path isn't exist, size is must
 	BootOrder uint16 `json:"bootOrder"` // boot disk need BootOrder, otherwise vm isn't found boot disk after os installed
 }
 
-func (opt *DiskOption) Build(osFamily OsFamily, osVariant string, ideNo, scsiNo, virtioNo *DiskFromNumber) string {
+func (opt *DiskOption) Build(ideNo, scsiNo, virtioNo *DiskFromNumber) string {
 	ops := make([]string, 0, 4)
 
 	ops = append(ops, opt.Path)
@@ -46,11 +49,23 @@ func (opt *DiskOption) Build(osFamily OsFamily, osVariant string, ideNo, scsiNo,
 
 	switch opt.Bus {
 	case BusIde:
-		ops = append(ops, "target.dev="+ideNo.Generate())
+		if opt.TargetDev != "" {
+			ops = append(ops, "target.dev="+opt.TargetDev)
+		} else {
+			ops = append(ops, "target.dev="+ideNo.Generate())
+		}
 	case BusSata, BusScsi:
-		ops = append(ops, "target.dev="+scsiNo.Generate())
+		if opt.TargetDev != "" {
+			ops = append(ops, "target.dev="+opt.TargetDev)
+		} else {
+			ops = append(ops, "target.dev="+scsiNo.Generate())
+		}
 	case BusVirtio:
-		ops = append(ops, "target.dev="+virtioNo.Generate())
+		if opt.TargetDev != "" {
+			ops = append(ops, "target.dev="+opt.TargetDev)
+		} else {
+			ops = append(ops, "target.dev="+virtioNo.Generate())
+		}
 	}
 
 	switch opt.Device {
@@ -66,6 +81,14 @@ func (opt *DiskOption) Build(osFamily OsFamily, osVariant string, ideNo, scsiNo,
 	}
 
 	return strings.Join(ops, ",")
+}
+
+func (opt *DiskOption) Validate() error {
+	if opt.Device == DiskDeviceDisk && opt.TargetDev != "" && !IsValidDiskName(opt.Bus, opt.TargetDev) {
+		return errors.New("name isn't match bus")
+	}
+
+	return nil
 }
 
 // 指定图形显示相关的配置
@@ -273,6 +296,10 @@ func (opt *VmOption) Validate() error {
 
 	var foundBootDevice bool
 	for _, v := range opt.Disks {
+		if err = v.Validate(); err != nil {
+			return err
+		}
+
 		if !foundBootDevice && v.BootOrder > 0 {
 			foundBootDevice = true
 		}
@@ -375,7 +402,7 @@ func BuildVirtIntall(opt *VmOption) string {
 	virtioNo := NewDiskFromNumber(BusVirtio, 1)
 	scsiNo := NewDiskFromNumber(BusScsi, 1)
 	for _, v := range opt.Disks {
-		ops = append(ops, "--disk "+v.Build(opt.OsFamily, opt.OsVariant, ideNo, scsiNo, virtioNo))
+		ops = append(ops, "--disk "+v.Build(ideNo, scsiNo, virtioNo))
 	}
 
 	ops = append(ops, "--check disk_size=off")
@@ -431,7 +458,7 @@ func VmCreate(opt *VmOption) error {
 	if err != nil {
 		return err
 	}
-	vm.Destroy()
+	vm.Free()
 
 	if opt.Autostart {
 		p := fmt.Sprintf(LibvritVmXmlVarPath, opt.Name)
@@ -442,13 +469,17 @@ func VmCreate(opt *VmOption) error {
 }
 
 const (
-	ErrSflagNoDomain = "Domain not found"
+	ErrSDomainNotFound = "Domain not found"
+)
+
+var (
+	ErrDomainNotFound = errors.New(ErrSDomainNotFound)
 )
 
 func VmUndefine(name string) error {
 	dom, err := libvirtConn.LookupDomainByName(name)
 	if err != nil {
-		if strings.Contains(err.Error(), ErrSflagNoDomain) {
+		if strings.Contains(err.Error(), ErrSDomainNotFound) {
 			return nil
 		}
 
@@ -462,12 +493,171 @@ func VmUndefine(name string) error {
 func VmReload(name string) error {
 	p := fmt.Sprintf("/etc/libvirt/qemu/%s.xml", name)
 	if !file.IsFile(p) {
-		return errors.New(ErrSflagNoDomain)
+		return ErrDomainNotFound
 	}
 
 	copt := &cmd.Option{}
 	_, err := cmd.CmdCombinedBashWithCtx(context.TODO(), copt,
 		fmt.Sprintf(" virsh define %s", p),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func FindVm(name string) (*libvirt.Domain, error) {
+	dom, err := libvirtConn.LookupDomainByName(name)
+	if err != nil {
+		return nil, ErrDomainNotFound
+	}
+
+	return dom, nil
+}
+
+type AddDiskReq struct {
+	Domain      string      `json:"domain" binding:"required"`
+	Disk        *DiskOption `json:"disk" binding:"required"`
+	IsHotunplug bool        `json:"isHotunplug" binding:"required"`
+}
+
+func AddDisk(r *AddDiskReq) error {
+	if err := r.Disk.Validate(); err != nil {
+		return err
+	}
+
+	dom, err := FindVm(r.Domain)
+	if err != nil {
+		return err
+	}
+	defer dom.Free()
+
+	state, _, err := dom.GetState()
+	if err != nil {
+		return err
+	}
+
+	if state == libvirt.DOMAIN_RUNNING || state == libvirt.DOMAIN_PAUSED {
+		r.IsHotunplug = true
+	}
+
+	tmp, err := dom.GetXMLDesc(0)
+	if err != nil {
+		return err
+	}
+
+	doc := &libvirtxml.Domain{}
+	if err = doc.Unmarshal(tmp); err != nil {
+		return err
+	}
+
+	if r.Disk.TargetDev != "" {
+		var isFound bool
+		disks := doc.Devices.Disks
+		for _, v := range disks {
+			if v.Target.Dev == r.Disk.TargetDev {
+				isFound = true
+				break
+			}
+		}
+		if isFound {
+			return errors.New("disk is exsist")
+		}
+	}
+
+	if r.Disk.TargetDev == "" {
+		var curDiskList []string
+
+		disks := doc.Devices.Disks
+		for _, v := range disks {
+			if v.Target.Bus == r.Disk.Bus {
+				curDiskList = append(curDiskList, v.Target.Dev)
+			}
+		}
+
+		var idNo *DiskFromNumber
+		if len(curDiskList) == 0 {
+			idNo = NewDiskFromNumber(r.Disk.Bus, 1)
+		} else {
+			idNo = NewDiskFromNumberByName(curDiskList[len(curDiskList)-1])
+		}
+
+		r.Disk.TargetDev = idNo.Generate()
+	}
+
+	parts := []string{
+		"virt-xml",
+		r.Domain,
+	}
+	if r.IsHotunplug {
+		parts = append(parts, "--update")
+	}
+	parts = append(parts, "--add-device", "--disk", r.Disk.Build(nil, nil, nil))
+
+	opt := &cmd.Option{}
+	_, err = cmd.CmdCombinedBashWithCtx(context.TODO(), opt,
+		strings.Join(parts, " "),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type RemoveDiskReq struct {
+	Domain    string `json:"domain" binding:"required"`
+	TargetDev string `json:"targetDev" binding:"required"`
+}
+
+func RemoveDisk(r *RemoveDiskReq) error {
+	dom, err := FindVm(r.Domain)
+	if err != nil {
+		return err
+	}
+	defer dom.Free()
+
+	state, _, err := dom.GetState()
+	if err != nil {
+		return err
+	}
+
+	if state == libvirt.DOMAIN_RUNNING || state == libvirt.DOMAIN_PAUSED {
+		return errors.New("vm is running or paused")
+	}
+
+	tmp, err := dom.GetXMLDesc(0)
+	if err != nil {
+		return err
+	}
+
+	doc := &libvirtxml.Domain{}
+	if err = doc.Unmarshal(tmp); err != nil {
+		return err
+	}
+
+	var isFound bool
+	disks := doc.Devices.Disks
+	for _, v := range disks {
+		if v.Target.Dev == r.TargetDev {
+			isFound = true
+			break
+		}
+	}
+	if !isFound {
+		return errors.New("disk is't exsist")
+	}
+
+	parts := []string{
+		"virt-xml",
+		r.Domain,
+	}
+	parts = append(parts, "--remove-device", "--disk", "target="+r.TargetDev)
+
+	opt := &cmd.Option{}
+	_, err = cmd.CmdCombinedBashWithCtx(context.TODO(), opt,
+		strings.Join(parts, " "),
 	)
 	if err != nil {
 		return err

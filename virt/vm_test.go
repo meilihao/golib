@@ -91,5 +91,29 @@ func TestVmDefinePreXml(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, vm)
 	//fmt.Println(vm.Save(opt.Name + ".xml"))
-	vm.Destroy()
+	vm.Free()
+}
+
+func TestAddDisk(t *testing.T) {
+	r := &AddDiskReq{
+		Domain: "xxx",
+		Disk: &DiskOption{
+			Path:   "/mnt/1.qcow2",
+			Device: DiskDeviceDisk,
+			Bus:    BusSata,
+			//TargetDev: "sdc",
+		},
+		IsHotunplug: false,
+	}
+	err := AddDisk(r)
+	assert.Nil(t, err)
+}
+
+func TestRemoveDisk(t *testing.T) {
+	r := &RemoveDiskReq{
+		Domain:    "xxx",
+		TargetDev: "vdc",
+	}
+	err := RemoveDisk(r)
+	assert.Nil(t, err)
 }

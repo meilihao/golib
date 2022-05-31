@@ -24,4 +24,8 @@ func TestDiskFromNumber(t *testing.T) {
 	g = NewDiskFromNumber("sata", 100)
 	v1 = g.Generate()
 	assert.Equal(t, v1, "sdcv")
+
+	g = NewDiskFromNumberByName("sdca")
+	v1 = g.Generate()
+	assert.Equal(t, v1, "sdcb")
 }
