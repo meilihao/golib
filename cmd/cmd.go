@@ -20,6 +20,7 @@ import (
 type Option struct {
 	IgnoreErr   bool
 	Timeout     time.Duration
+	Stdin       io.Reader
 	SysProcAttr *syscall.SysProcAttr
 }
 
@@ -40,6 +41,9 @@ func CmdCombinedWithCtx(ctx context.Context, opt *Option, name string, args ...s
 	cmd.Env = append(os.Environ(), "LANG=POSIX")
 	if opt.SysProcAttr != nil {
 		cmd.SysProcAttr = opt.SysProcAttr
+	}
+	if opt.Stdin != nil {
+		cmd.Stdin = opt.Stdin
 	}
 
 	out, err := cmd.CombinedOutput()
@@ -87,6 +91,9 @@ func CmdCombinedBashWithCtx(ctx context.Context, opt *Option, in string) ([]byte
 	if opt.SysProcAttr != nil {
 		cmd.SysProcAttr = opt.SysProcAttr
 	}
+	if opt.Stdin != nil {
+		cmd.Stdin = opt.Stdin
+	}
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -115,7 +122,7 @@ func CmdCombinedBash(opt *Option, in string) ([]byte, error) {
 	return CmdCombinedBashWithCtx(context.TODO(), opt, in)
 }
 
-func CmdCombinedWithStdin(reader io.Reader, name string, args ...string) ([]byte, error) {
+func CmdCombinedWithStdin(opt *Option, reader io.Reader, name string, args ...string) ([]byte, error) {
 	now := time.Now()
 
 	cmd := exec.Command(name, args...)
