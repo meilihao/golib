@@ -12,6 +12,7 @@ import (
 
 var (
 	appName        = ""
+	component      = ""
 	gitTag         = ""
 	gitBranch      = ""
 	gitHash        = ""
@@ -43,7 +44,7 @@ type BuildInfo struct {
 }
 
 // Get returns build info
-func NewBuildInfo(component, version string) *BuildInfo {
+func NewBuildInfo() *BuildInfo {
 	t, _ := time.ParseInLocation("2006-01-02 15:04:05Z07:00", buildTimestamp, time.UTC)
 
 	i := BuildInfo{
