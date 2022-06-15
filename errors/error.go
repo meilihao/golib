@@ -14,7 +14,7 @@ type CodeErr struct {
 	Num      int32             `json:"num"`
 	Code     string            `json:"code"`
 	Message  string            `json:"message"`
-	Metadata map[string]string `json:"metadata"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 func (e CodeErr) Error() string {
