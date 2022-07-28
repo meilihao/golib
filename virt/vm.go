@@ -18,14 +18,21 @@ import (
 )
 
 /*
-   vcpus = sa.Column(sa.Integer(), default=1)
+兼容性virt-install 1.x:
+1. boot.order -> boot_order
+1. target.dev -> target
+1. bootmenu -> 没有
+*/
 
-   cores = sa.Column(sa.Integer(), default=1)
-   threads = sa.Column(sa.Integer(), default=1)
-   hide_from_msr = sa.Column(sa.Boolean(), default=False)
-   ensure_display_device = sa.Column(sa.Boolean(), default=True)
-   arch_type = sa.Column(sa.String(255), default=None, nullable=True)
-   machine_type = sa.Column(sa.String(255), default=None, nullable=True)
+/*
+vcpus = sa.Column(sa.Integer(), default=1)
+
+cores = sa.Column(sa.Integer(), default=1)
+threads = sa.Column(sa.Integer(), default=1)
+hide_from_msr = sa.Column(sa.Boolean(), default=False)
+ensure_display_device = sa.Column(sa.Boolean(), default=True)
+arch_type = sa.Column(sa.String(255), default=None, nullable=True)
+machine_type = sa.Column(sa.String(255), default=None, nullable=True)
 */
 type DiskOption struct {
 	Device    string `json:"device" binding:"required"`
@@ -433,7 +440,7 @@ func VmDefinePreXml(opt *VmOption) (string, error) {
 	}
 
 	tmp := string(out)
-	if i := strings.Index(s, "<domain type"); i != -1 {
+	if i := strings.Index(tmp, "<domain type"); i != -1 {
 		tmp = tmp[i:]
 	}
 
