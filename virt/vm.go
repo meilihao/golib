@@ -121,6 +121,8 @@ func (opt *GraphicsOption) Build() string {
 	return strings.Join(ops, ",")
 }
 
+// `--network type=direct,source=enp6s0f0,source_mode=bridge,model=virtio` // macvtap
+// `--network type=bridge,source=br0` = `--network bridge=br0`
 type NicOption struct {
 	Type       string `json:"sourceTyp" binding:"required"`
 	Source     string `json:"sourceTyp" binding:"required"`
