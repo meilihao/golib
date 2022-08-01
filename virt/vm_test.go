@@ -71,10 +71,11 @@ func TestVmDefinePreXml(t *testing.T) {
 		},
 		Nics: []*NicOption{
 			{
-				SourceType:  "bridge",
-				SourceValue: "virbr0",
-				Mac:         "52:54:00:f6:b8:9e",
-				Model:       "virtio",
+				Type:       "bridge",
+				Source:     "virbr0",
+				SourceMode: "",
+				Mac:        "52:54:00:f6:b8:9e",
+				Model:      "virtio",
 			},
 		},
 		IsSupportVirtio: true,
@@ -122,10 +123,11 @@ func TestAddNic(t *testing.T) {
 	r := &AddNicReq{
 		Domain: "xxx",
 		Nic: &NicOption{
-			SourceType:  "bridge",
-			SourceValue: "virbr0",
-			Mac:         "52:54:00:f6:b8:9f",
-			Model:       "virtio",
+			Type:       "bridge",
+			Source:     "virbr0",
+			SourceMode: "",
+			Mac:        "52:54:00:f6:b8:9f",
+			Model:      "virtio",
 		},
 		IsHotunplug: false,
 	}

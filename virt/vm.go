@@ -122,25 +122,25 @@ func (opt *GraphicsOption) Build() string {
 }
 
 type NicOption struct {
-	SourceType  string `json:"sourceTyp" binding:"required"`
-	SourceValue string `json:"sourceValue" binding:"required"`
-	Mac         string `json:"mac" binding:"required"` // virt-install will check is used
-	Model       string `json:"model" binding:"required"`
-	BootOrder   uint16 `json:"bootOrder"`
+	Type       string `json:"sourceTyp" binding:"required"`
+	Source     string `json:"sourceTyp" binding:"required"`
+	SourceMode string `json:"sourceValue"`
+	Mac        string `json:"mac"` // virt-install will check is used
+	Model      string `json:"model" binding:"required"`
+	BootOrder  uint16 `json:"bootOrder"`
 }
 
 func (opt *NicOption) Build() string {
 	ops := make([]string, 0, 4)
 
-	if opt.SourceType == "none" {
+	if opt.Type == "none" {
 		return "none"
 	}
 
-	switch opt.SourceType {
-	case "bridge":
-		ops = append(ops, "bridge="+opt.SourceValue)
-	case "network":
-		ops = append(ops, "networok="+opt.SourceValue)
+	ops = append(ops, "type="+opt.Type)
+	ops = append(ops, "source="+opt.Source)
+	if opt.SourceMode != "" {
+		ops = append(ops, "source.mode="+opt.SourceMode)
 	}
 
 	if opt.Mac == "" {
@@ -157,7 +157,7 @@ func (opt *NicOption) Build() string {
 }
 
 func (opt *NicOption) Validate() error {
-	if !reMacAddr.MatchString(opt.Mac) {
+	if opt.Mac != "" && !reMacAddr.MatchString(opt.Mac) {
 		return fmt.Errorf("invalid mac: %s", opt.Mac)
 	}
 
