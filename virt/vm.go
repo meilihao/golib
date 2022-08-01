@@ -523,7 +523,7 @@ func FindVm(name string) (*libvirt.Domain, error) {
 type AddDiskReq struct {
 	Domain      string      `json:"domain" binding:"required"`
 	Disk        *DiskOption `json:"disk" binding:"required"`
-	IsHotunplug bool        `json:"isHotunplug" binding:"required"`
+	IsHotunplug bool        `json:"isHotunplug"`
 }
 
 func AddDisk(r *AddDiskReq) error {
@@ -673,7 +673,7 @@ func RemoveDisk(r *RemoveDiskReq) error {
 type AddNicReq struct {
 	Domain      string     `json:"domain" binding:"required"`
 	Nic         *NicOption `json:"nic" binding:"required"`
-	IsHotunplug bool       `json:"isHotunplug" binding:"required"`
+	IsHotunplug bool       `json:"isHotunplug"`
 }
 
 func AddNic(r *AddNicReq) error {
