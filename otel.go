@@ -129,6 +129,9 @@ func InitOTEL(endpoint, serviceName string, logger, spanLogger *zap.Logger) (fun
 func SpanLog(ctx context.Context, span trace.Span, l zapcore.Level, msg string, kv ...attribute.KeyValue) {
 	//var logger *zap.Logger
 	// if tmp := ctx.Value(LoggerKey{}); tmp == nil { // 不使用该方式, 因为代码实现不美观且会导致在gin handler context中注入LoggerKey{}前的gin middleware DebugReq()无法使用SpanLog()
+	if l == zapcore.ErrorLevel {
+		span.SetAttributes(attribute.Bool("error", true)) // error mark
+	}
 	if _spanLogger == nil {
 		span.AddEvent(msg, trace.WithAttributes(kv...))
 
