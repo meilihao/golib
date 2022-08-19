@@ -19,6 +19,7 @@ func InitPostgres2Gorm(conf *DBConfig) (*gorm.DB, error) {
 	gconf := &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,
+			NoLowerCase:   conf.KeepNameRaw,
 		},
 	}
 	if conf.ShowSQL {

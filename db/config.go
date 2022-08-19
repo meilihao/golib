@@ -10,4 +10,5 @@ type DBConfig struct {
 	MaxOpenConns int    `yaml:"max_open_conns"`
 	ShowSQL      bool   `yaml:"show_sql"`
 	Loc          string `yaml:"loc"`
+	KeepNameRaw  bool   `yaml:"keep_name_raw"`
 }
