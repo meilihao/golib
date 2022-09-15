@@ -337,10 +337,6 @@ func (opt *VmOption) Convert() error {
 	}
 
 	for _, v := range opt.Disks {
-		if v.Device == DiskDeviceCdrom {
-			v.Bus = BusSata
-		}
-
 		if opt.OsFamily == OsFamilyWinnt && (opt.OsVariant == "winxp" || opt.OsVariant == "win2k") {
 			v.Bus = BusIde
 		}
