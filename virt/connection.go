@@ -77,8 +77,9 @@ func (m *ConnectionManager) GetConnection(host, login, passwd, typ string) (conn
 			m.ConnectionsLock.RUnlock()
 			return
 		}
-		conn.UnregisterCloseCallback()
-		conn.Close()
+
+		vconn.Conn.UnregisterCloseCallback()
+		vconn.Conn.Close()
 		delete(m.Connections, host)
 	}
 	m.ConnectionsLock.RUnlock()
