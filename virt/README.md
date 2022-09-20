@@ -1,4 +1,11 @@
 # virt
+推荐手动构建xml:
+- 优点
+
+    1. 当所有可引导设备都没有boot order时, libvirt自动添加`<os><boot dev='...'/></os>`, 与之后添加的带boot order属性的设备冲突
+- 缺点:
+
+    1. 没有virtinst项目帮忙检查参数
 
 ## deps
 ```bash
