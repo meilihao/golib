@@ -159,6 +159,7 @@ func (vc *VConnection) NewConnect() (conn *libvirt.Connect, err error) {
 	return
 }
 
+// https://github.com/kubevirt/kubevirt/blob/master/pkg/virt-launcher/virtwrap/cli/libvirt.go#L347
 func (vc *VConnection) LibvirtAuthCredentialsCallback(creds []*libvirt.ConnectCredential) {
 	for _, cred := range creds {
 		if cred.Type == libvirt.CRED_AUTHNAME {

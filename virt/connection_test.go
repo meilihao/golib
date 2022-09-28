@@ -1,6 +1,7 @@
 package virt
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,9 +24,13 @@ func TestConnectionManager(t *testing.T) {
 		_, err := cmd.CmdCombinedBash(nil, "systemctl restart libvirtd.service")
 		assert.Nil(t, err)
 	}()
-	time.Sleep(10 * time.Second)
+	time.Sleep(60 * time.Second)
 
 	conn, err = m.GetConnection(host, "", "", LibvirtUriTypeSocket)
 	assert.Nil(t, err)
 	assert.NotNil(t, conn)
+
+	data, err := conn.GetCapabilities()
+	assert.Nil(t, err)
+	fmt.Println(data)
 }
