@@ -1,4 +1,4 @@
-package udev
+package sys
 
 import (
 	"fmt"
