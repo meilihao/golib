@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func MarshAny(v any) json.RawMessage {
+func MarshalAny(v any) json.RawMessage {
 	data, err := json.Marshal(v)
 	if err != nil {
 		log.Glog.Error("marshal", zap.Error(err))
@@ -15,7 +15,7 @@ func MarshAny(v any) json.RawMessage {
 	return data
 }
 
-func MarshAnyString(v any) string {
+func MarshalAnyString(v any) string {
 	data, err := json.Marshal(v)
 	if err != nil {
 		log.Glog.Error("marshal", zap.Error(err))
