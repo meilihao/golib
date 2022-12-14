@@ -171,9 +171,9 @@ func (c *Client) Execute(s string, ignoreErr ...bool) (r *Result) {
 
 	if c.Conf.UsePty {
 		tmodes := ssh.TerminalModes{
-			53:  0,     // disable echoing
-			128: 14400, // input speed = 14.4kbaud
-			129: 14400, // output speed = 14.4kbaud
+			ssh.ECHO:          0,     // disable echoing
+			ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
+			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 		}
 
 		if e := ses.RequestPty("xterm", 80, 40, tmodes); e != nil {
