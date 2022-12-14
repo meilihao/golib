@@ -194,6 +194,7 @@ func (c *Client) Execute(s string, ignoreErr ...bool) (r *Result) {
 
 	if exitError, ok := r.Error.(*ssh.ExitError); ok {
 		r.ExitStatus = exitError.ExitStatus()
+		r.Error = nil
 	}
 
 	if !r.IsSuccess() {
