@@ -197,14 +197,14 @@ func (c *Client) Execute(s string, ignoreErr ...bool) (r *Result) {
 	}
 
 	if !r.IsSuccess() {
-		if r.StderrBuffer.Len() > 0 {
-			r.Error = errors.New(r.StdoutBuffer.String())
-		}
+		// if r.StderrBuffer.Len() > 0 {
+		// 	r.Error = errors.New(r.StdoutBuffer.String())
+		// }
 
 		if len(ignoreErr) > 0 {
-			log.Glog.Warn("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration), zap.Error(r.Error))
+			log.Glog.Warn("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration), zap.Int("code", r.ExitStatus), zap.String("error", r.Stderr()))
 		} else {
-			log.Glog.Error("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration), zap.Error(r.Error))
+			log.Glog.Error("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration), zap.Int("code", r.ExitStatus), zap.String("error", r.Stderr()))
 		}
 	} else {
 		log.Glog.Debug("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration))
