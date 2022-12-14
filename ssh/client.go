@@ -152,6 +152,10 @@ func (r *Result) IsSuccess() bool {
 	return r.ExitStatus == 0
 }
 
+func (r *Result) CombinedOutput() string {
+	return r.Stdout() + r.Stderr()
+}
+
 func (r *Result) String() string {
 	return fmt.Sprintf("stdout: %s\nstderr: %s\nduration: %f\nstatus: %d",
 		r.Stdout(), r.Stderr(), r.Duration.Seconds(), r.ExitStatus)
