@@ -128,8 +128,8 @@ func ReadPrivateKey(path, passphrase string) (ssh.Signer, error) {
 type Result struct {
 	StdoutBuffer, StderrBuffer *bytes.Buffer
 	Duration                   time.Duration
-	Error                      error
-	ExitStatus                 int
+	//Error                      error
+	ExitStatus int
 }
 
 func (r *Result) Stdout() string {
@@ -157,15 +157,11 @@ func (r *Result) String() string {
 		r.Stdout(), r.Stderr(), r.Duration.Seconds(), r.ExitStatus)
 }
 
-func (c *Client) Execute(s string, ignoreErr ...bool) (r *Result) {
-	r = &Result{}
-
+func (c *Client) Execute(s string, ignoreErr ...bool) (*Result, error) {
 	started := time.Now()
 	ses, e := c.Conn.NewSession()
 	if e != nil {
-		r.Error = e
-
-		return r
+		return nil, e
 	}
 	defer ses.Close()
 
@@ -177,24 +173,25 @@ func (c *Client) Execute(s string, ignoreErr ...bool) (r *Result) {
 		}
 
 		if e := ses.RequestPty("xterm", 80, 40, tmodes); e != nil {
-			r.Error = e
-
-			return r
+			return nil, e
 		}
 	}
 
+	var err error
+	r := &Result{}
 	r.StdoutBuffer = bytes.NewBuffer(nil)
 	r.StderrBuffer = bytes.NewBuffer(nil)
 
 	ses.Stdout = r.StdoutBuffer
 	ses.Stderr = r.StderrBuffer
 
-	r.Error = ses.Run(s)
+	err = ses.Run(s)
 	r.Duration = time.Since(started)
 
-	if exitError, ok := r.Error.(*ssh.ExitError); ok {
+	if exitError, ok := err.(*ssh.ExitError); ok {
 		r.ExitStatus = exitError.ExitStatus()
-		r.Error = nil
+	} else {
+		return nil, err
 	}
 
 	if !r.IsSuccess() {
@@ -211,5 +208,5 @@ func (c *Client) Execute(s string, ignoreErr ...bool) (r *Result) {
 		log.Glog.Debug("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration))
 	}
 
-	return r
+	return r, nil
 }

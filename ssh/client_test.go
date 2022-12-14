@@ -17,9 +17,9 @@ func TestPassword(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := c.Execute("ls ~")
-	if r.Error != nil {
-		t.Fatal(r.Error)
+	r, err := c.Execute("ls ~")
+	if err != nil {
+		t.Fatal(err)
 	}
 	t.Log(r.String())
 }
@@ -38,9 +38,9 @@ func TestEd25519(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := c.Execute("ls ~")
-	if r.Error != nil {
-		t.Fatal(r.Error)
+	r, err := c.Execute("ls ~")
+	if err != nil {
+		t.Fatal(err)
 	}
 	t.Log(r.String())
 }
