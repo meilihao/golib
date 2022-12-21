@@ -36,7 +36,7 @@ type Mediumx struct {
 	Sg       string `json:"sg"`
 	PathByid string `json:"path_byid"`
 
-	Tapes []*Tape `json:""`
+	Tapes []*Tape `json:"tapes"`
 
 	Target *TargetFrom `json:"target"`
 }
