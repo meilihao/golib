@@ -6,8 +6,8 @@ import (
 
 func TestPassword(t *testing.T) {
 	conf := &ClientConfig{
-		Host:         "47.111.1.49",
-		User:         "xxx",
+		Host:         "localhost",
+		User:         "chen",
 		Password:     "xxx",
 		DisableAgent: true,
 	}
@@ -17,7 +17,7 @@ func TestPassword(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := c.Execute("ls ~")
+	r, err := c.Execute("echo 1")
 	if err != nil {
 		t.Fatal(err)
 	}

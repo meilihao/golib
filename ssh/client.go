@@ -128,8 +128,8 @@ func ReadPrivateKey(path, passphrase string) (ssh.Signer, error) {
 type Result struct {
 	StdoutBuffer, StderrBuffer *bytes.Buffer
 	Duration                   time.Duration
-	//Error                      error
-	ExitStatus int
+	ExitStatus                 int
+	Error                      error
 }
 
 func (r *Result) Stdout() string {
@@ -162,10 +162,16 @@ func (r *Result) String() string {
 }
 
 func (c *Client) Execute(s string, ignoreErr ...bool) (*Result, error) {
+	r := &Result{
+		StdoutBuffer: bytes.NewBuffer(nil),
+		StderrBuffer: bytes.NewBuffer(nil),
+	}
 	started := time.Now()
-	ses, e := c.Conn.NewSession()
-	if e != nil {
-		return nil, e
+
+	var ses *ssh.Session
+	ses, r.Error = c.Conn.NewSession()
+	if r.Error != nil {
+		return r, r.Error
 	}
 	defer ses.Close()
 
@@ -176,27 +182,23 @@ func (c *Client) Execute(s string, ignoreErr ...bool) (*Result, error) {
 			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 		}
 
-		if e := ses.RequestPty("xterm", 80, 40, tmodes); e != nil {
-			return nil, e
+		if r.Error = ses.RequestPty("xterm", 80, 40, tmodes); r.Error != nil {
+			return r, r.Error
 		}
 	}
-
-	var err error
-	r := &Result{}
-	r.StdoutBuffer = bytes.NewBuffer(nil)
-	r.StderrBuffer = bytes.NewBuffer(nil)
 
 	ses.Stdout = r.StdoutBuffer
 	ses.Stderr = r.StderrBuffer
 
-	err = ses.Run(s)
+	r.Error = ses.Run(s)
 	r.Duration = time.Since(started)
 
-	if err != nil {
-		if exitError, ok := err.(*ssh.ExitError); ok {
+	if r.Error != nil {
+		if exitError, ok := r.Error.(*ssh.ExitError); ok {
 			r.ExitStatus = exitError.ExitStatus()
+			r.Error = nil
 		} else {
-			return nil, err
+			return r, r.Error
 		}
 	}
 
@@ -206,9 +208,9 @@ func (c *Client) Execute(s string, ignoreErr ...bool) (*Result, error) {
 		// }
 
 		if len(ignoreErr) > 0 {
-			log.Glog.Warn("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration), zap.Int("code", r.ExitStatus), zap.String("error", r.Stderr()))
+			log.Glog.Warn("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration), zap.Int("code", r.ExitStatus), zap.String("output", r.Stderr()))
 		} else {
-			log.Glog.Error("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration), zap.Int("code", r.ExitStatus), zap.String("error", r.Stderr()))
+			log.Glog.Error("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration), zap.Int("code", r.ExitStatus), zap.String("output", r.Stderr()))
 		}
 	} else {
 		log.Glog.Debug("ssh exec", zap.String("cmd", s), zap.Duration("time", r.Duration))
