@@ -192,10 +192,12 @@ func (c *Client) Execute(s string, ignoreErr ...bool) (*Result, error) {
 	err = ses.Run(s)
 	r.Duration = time.Since(started)
 
-	if exitError, ok := err.(*ssh.ExitError); ok {
-		r.ExitStatus = exitError.ExitStatus()
-	} else {
-		return nil, err
+	if err != nil {
+		if exitError, ok := err.(*ssh.ExitError); ok {
+			r.ExitStatus = exitError.ExitStatus()
+		} else {
+			return nil, err
+		}
 	}
 
 	if !r.IsSuccess() {
