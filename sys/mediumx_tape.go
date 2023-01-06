@@ -119,6 +119,10 @@ func GetMediumxs() ([]*Mediumx, error) {
 		}
 	}
 
+	if len(ls) == 0 {
+		return ls, nil
+	}
+
 	byIds, err := TapeByIdPaths()
 	if err != nil {
 		return nil, err
