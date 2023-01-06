@@ -43,6 +43,7 @@ type Mediumx struct {
 
 const (
 	ProtocolIscsi = "iscsi"
+	ProtocolFc    = "fc"
 )
 
 type TargetFrom struct {
@@ -180,8 +181,8 @@ func GetMediumxTarget(dev string) (*TargetFrom, error) {
 		return nil, nil
 	}
 
-	x := strings.Index(raw, "-iscsi-")
-	if x != -1 {
+	if strings.Contains(raw, "-iscsi-") {
+		x := strings.Index(raw, "-iscsi-")
 		y := strings.LastIndex(raw, "-lun-")
 		if y == -1 {
 			return nil, fmt.Errorf("no found target(%s)", dev)
@@ -190,6 +191,18 @@ func GetMediumxTarget(dev string) (*TargetFrom, error) {
 		return &TargetFrom{
 			Protocol: ProtocolIscsi,
 			Target:   raw[x+7 : y],
+		}, nil
+	}
+	if strings.Contains(raw, "-fc-") {
+		x := strings.Index(raw, "-fc-")
+		y := strings.LastIndex(raw, "-lun-")
+		if y == -1 {
+			return nil, fmt.Errorf("no found target(%s)", dev)
+		}
+
+		return &TargetFrom{
+			Protocol: ProtocolFc,
+			Target:   raw[x+4 : y],
 		}, nil
 	}
 
