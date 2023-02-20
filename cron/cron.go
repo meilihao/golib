@@ -112,17 +112,17 @@ func (s byTime) Less(i, j int) bool {
 //
 // Available Settings
 //
-//   Time Zone
-//     Description: The time zone in which schedules are interpreted
-//     Default:     time.Local
+//	Time Zone
+//	  Description: The time zone in which schedules are interpreted
+//	  Default:     time.Local
 //
-//   Parser
-//     Description: Parser converts cron spec strings into cron.Schedules.
-//     Default:     Accepts this spec: https://en.wikipedia.org/wiki/Cron
+//	Parser
+//	  Description: Parser converts cron spec strings into cron.Schedules.
+//	  Default:     Accepts this spec: https://en.wikipedia.org/wiki/Cron
 //
-//   Chain
-//     Description: Wrap submitted jobs to customize behavior.
-//     Default:     A chain that recovers panics and logs them to stderr.
+//	Chain
+//	  Description: Wrap submitted jobs to customize behavior.
+//	  Default:     A chain that recovers panics and logs them to stderr.
 //
 // See "cron.With*" to modify the default behavior.
 func New(opts ...Option) *Cron {
@@ -311,6 +311,7 @@ func (c *Cron) run() {
 		sort.Sort(byTime(c.entries))
 
 		var timer *time.Timer
+
 		for _, entry := range c.entries {
 			// log.Glog.Debug("cron schedule range", zap.Time("now", now),
 			// 	zap.Time("next", entry.Next), zap.String("end_time", entry.Job.EndTime().String()),
@@ -318,10 +319,6 @@ func (c *Cron) run() {
 			// 	zap.Bool("c2", entry.Next.Before(now)),
 			// 	zap.String("unique_id", entry.UniqueID))
 			if (!entry.Job.EndTime().IsZero() && entry.Next.After(entry.Job.EndTime())) || entry.Next.Before(now) { //  entry.Next > entry.Job.EndTime() || entry.Next > now
-				if entry.Status < 0 {
-					continue
-				}
-
 				entry.Status = -1
 
 				go func(id EntryID) {
@@ -329,6 +326,11 @@ func (c *Cron) run() {
 				}(entry.ID)
 
 				log.Glog.Debug("cron schedule end", zap.Int("id", int(entry.ID)), zap.Time("now", now), zap.Time("next", entry.Next), zap.String("end_time", entry.Job.EndTime().String()), zap.String("unique_id", entry.UniqueID))
+			}
+		}
+		for _, entry := range c.entries {
+			if entry.Status < 0 {
+				continue
 			} else {
 				timer = time.NewTimer(entry.Next.Sub(now))
 				log.Glog.Debug("cron schedule next", zap.Int("id", int(entry.ID)), zap.Time("now", now), zap.Time("next", entry.Next), zap.Duration("duration", entry.Next.Sub(now)), zap.String("unique_id", entry.UniqueID))
