@@ -24,16 +24,31 @@ func InitPostgres2Gorm(conf *DBConfig) (*gorm.DB, error) {
 	}
 	if conf.ShowSQL {
 		gconf.Logger = logger.Default.LogMode(logger.Info)
+	} else {
+		gconf.Logger = logger.Discard.LogMode(logger.Info)
 	}
 
-	engine, err := gorm.Open(
-		postgres.Open(fmt.Sprintf(`host=%s port=%d user=%s password=%s dbname=%s sslmode=disable TimeZone=%s`,
-			conf.Host,
-			conf.Port,
-			conf.Username,
-			conf.Password,
-			conf.Name,
-			conf.Loc)), gconf)
+	var engine *gorm.DB
+	var err error
+
+	if conf.Name == "" {
+		engine, err = gorm.Open(
+			postgres.Open(fmt.Sprintf(`host=%s port=%d user=%s password=%s sslmode=disable TimeZone=%s`,
+				conf.Host,
+				conf.Port,
+				conf.Username,
+				conf.Password,
+				conf.Loc)), gconf)
+	} else {
+		engine, err = gorm.Open(
+			postgres.Open(fmt.Sprintf(`host=%s port=%d user=%s password=%s dbname=%s sslmode=disable TimeZone=%s`,
+				conf.Host,
+				conf.Port,
+				conf.Username,
+				conf.Password,
+				conf.Name,
+				conf.Loc)), gconf)
+	}
 	if err != nil {
 		return nil, err
 	}
