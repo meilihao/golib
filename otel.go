@@ -13,21 +13,18 @@ import (
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/metric/global"
 	"go.opentelemetry.io/otel/propagation"
-	controller "go.opentelemetry.io/otel/sdk/metric/controller/basic"
-	processor "go.opentelemetry.io/otel/sdk/metric/processor/basic"
-	"go.opentelemetry.io/otel/sdk/metric/selector/simple"
+	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type (
@@ -41,11 +38,11 @@ var (
 // Initializes an OTLP exporter, and configures the corresponding trace and
 // metric providers.
 // endpoint != "" && otel collector isn't started, InitOTEL will hung
-func InitOTEL(endpoint, serviceName string, logger, spanLogger *zap.Logger) (func(), error) {
+func InitOTEL(endpoint, serviceName string, logger, spanLogger *zap.Logger) (func(ctx context.Context), error) {
 	_spanLogger = spanLogger
 	if endpoint == "" {
 		log.Glog.Info("trace status", zap.Bool("status", false))
-		return func() {}, nil
+		return func(ctx context.Context) {}, nil
 	}
 	log.Glog.Info("trace status", zap.String("server", endpoint))
 
@@ -54,7 +51,7 @@ func InitOTEL(endpoint, serviceName string, logger, spanLogger *zap.Logger) (fun
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			// the service name used to display traces in backends
-			semconv.ServiceNameKey.String(serviceName),
+			semconv.ServiceName(serviceName),
 		),
 	)
 	if err != nil {
@@ -65,13 +62,20 @@ func InitOTEL(endpoint, serviceName string, logger, spanLogger *zap.Logger) (fun
 	// microk8s), it should be accessible through the NodePort service at the
 	// `localhost:30080` endpoint. Otherwise, replace `localhost` with the
 	// endpoint of your cluster. If you run the app inside k8s, then you can
-	// probably connect directly to the service through dns
-	// Set up a trace exporter
-	traceExporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithInsecure(),
-		otlptracegrpc.WithEndpoint(endpoint),
-		otlptracegrpc.WithDialOption(grpc.WithBlock()), // useful for testing
+	// probably connect directly to the service through dns.
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, endpoint,
+		// Note the use of insecure transport here. TLS is recommended in production.
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create gRPC connection to collector")
+	}
+
+	// Set up a trace exporter
+	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create trace exporter")
 	}
@@ -90,38 +94,29 @@ func InitOTEL(endpoint, serviceName string, logger, spanLogger *zap.Logger) (fun
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
 	// config and start metric exporter
-	exp, err := otlpmetric.New(ctx, otlpmetricgrpc.NewClient(
+	exp, err := otlpmetricgrpc.New(ctx,
 		otlpmetricgrpc.WithInsecure(),
 		otlpmetricgrpc.WithEndpoint(endpoint),
 		otlpmetricgrpc.WithDialOption(grpc.WithBlock()),
-	))
+	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create metric exporter")
 	}
-	pusher := controller.New(
-		processor.New(
-			simple.NewWithExactDistribution(),
-			exp,
-		),
-		controller.WithExporter(exp),
-		controller.WithCollectPeriod(2*time.Second),
-	)
-	global.SetMeterProvider(pusher.MeterProvider())
-	if err = pusher.Start(context.Background()); err != nil {
-		return nil, errors.Wrap(err, "failed to start metric controller")
-	}
+
+	meterProvider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(exp)))
+	otel.SetMeterProvider(meterProvider)
 
 	log.Glog.Info("init otel done")
 
-	return func() {
+	return func(ctx context.Context) {
 		// Shutdown will flush any remaining spans and shut down the exporter.
 		if err := tracerProvider.Shutdown(ctx); err != nil {
-			logger.Error("failed to shutdown TracerProvider", zap.Error(err))
+			logger.Error("failed to shutdown tracerProvider", zap.Error(err))
 		}
 
 		// Push any last metric events to the exporter.
-		if err := pusher.Stop(context.Background()); err != nil {
-			logger.Error("failed to stop metric controller", zap.Error(err))
+		if err := meterProvider.Shutdown(ctx); err != nil {
+			logger.Error("failed to shutdown meterProvider", zap.Error(err))
 		}
 	}, nil
 }

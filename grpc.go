@@ -126,10 +126,10 @@ func UnaryLogServerInterceptor() grpc.UnaryServerInterceptor {
 		fs := make([]attribute.KeyValue, 0, n)
 		fs = append(fs,
 			attribute.String("method", info.FullMethod),
-			attribute.Any("req", req),
-			attribute.Any("md", md),
+			attribute.String("req", DumpToJsonString(req)),
+			attribute.String("md", DumpToJsonString(md)),
 			attribute.String("code", code.String()),
-			attribute.Any("resp", resp),
+			attribute.String("resp", DumpToJsonString(resp)),
 			attribute.String("duration", time.Since(startTime).String()),
 		)
 
