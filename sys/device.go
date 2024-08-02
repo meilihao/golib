@@ -20,8 +20,8 @@ var (
 type SdDevice struct {
 	Parent *SdDevice
 
-	Name            string
-	Devpath         string
+	Name            string // dev.sys_name  // todo
+	Devpath         string // dev.device_path // todo
 	Envs            map[string]string
 	Attrs           map[string]string
 	Tags            []string
