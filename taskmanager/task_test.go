@@ -3,6 +3,7 @@ package taskmanager
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 var (
@@ -13,15 +14,14 @@ type DemoTask struct {
 	*task
 }
 
-func NewDemoTask(taskId, taskName string) *DemoTask {
-	dt := &DemoTask{}
-	dt.task = newTask(taskId, taskName, false)
+func (dt *DemoTask) InitTaskStep(taskId, taskName string, input []byte) error {
+	dt.task = newTask(taskId, taskName, false, time.Time{})
 	dt.CreateTaskStep()
 
-	return dt
+	return nil
 }
 
-func (dt *DemoTask) InitTaskStep(input []byte) error {
+func (dt *DemoTask) ReloadCtx(oldCtx []byte) error {
 	return nil
 }
 
@@ -79,6 +79,6 @@ func (tsDd *TaskStepDemoDone) ClearRun() error {
 }
 
 func TestTask(t *testing.T) {
-	task := NewDemoTask("1", "demo")
-	RunSyncTask(task, nil)
+	task := new(DemoTask)
+	RunSyncTask(task, "1", "demo", nil)
 }

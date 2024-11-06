@@ -1,8 +1,8 @@
 package taskmanager
 
 import (
-	"container/list"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -20,20 +20,32 @@ var (
 )
 
 type TaskManager struct {
-	db          *gorm.DB
-	waitingList *list.List
-	lock        sync.RWMutex
-	doubleMap   map[string]Tasker
+	db                *gorm.DB
+	lock              sync.RWMutex
+	pool              map[string]Tasker
+	redoFuncContainer map[string]reflect.Type
 }
 
 func NewTaskManager(db *gorm.DB) *TaskManager {
 	m := &TaskManager{
-		db:          db,
-		waitingList: list.New(),
-		doubleMap:   make(map[string]Tasker, 64),
+		db:                db,
+		pool:              make(map[string]Tasker, 64),
+		redoFuncContainer: make(map[string]reflect.Type),
 	}
 
 	return m
+}
+
+func (m *TaskManager) RegiesterRedoTasker(n string, i any) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	if other := m.redoFuncContainer[n]; other != nil {
+		panic("register double redo task: " + n)
+	}
+	t := reflect.TypeOf(i)
+
+	m.redoFuncContainer[n] = t
 }
 
 func (m *TaskManager) AddTask(er Tasker) error {
@@ -41,14 +53,28 @@ func (m *TaskManager) AddTask(er Tasker) error {
 	defer m.lock.Unlock()
 
 	tid := er.GetTask().Id()
-	if other := m.doubleMap[tid]; other != nil {
+	if other := m.pool[tid]; other != nil {
 		return fmt.Errorf("double task(%s)", tid)
 	}
 
-	m.doubleMap[tid] = er
-	m.waitingList.PushBack(er)
+	m.pool[tid] = er
 
 	log.Glog.Info("added task", zap.String("id", tid))
+
+	return nil
+}
+
+func (m *TaskManager) Cancel(id string) error {
+	m.lock.Lock()
+
+	er := m.pool[id]
+	if er == nil {
+		m.lock.Unlock()
+		return fmt.Errorf("no task(%s) to cancel", id)
+	}
+	m.lock.Unlock()
+
+	er.Cancel()
 
 	return nil
 }
@@ -77,10 +103,7 @@ func RunSyncSubTask(t Tasker, input []byte) error {
 	return nil
 }
 
-func RunSyncTask(t Tasker, input []byte) error {
-	taskId := t.Id()
-	taskName := t.Name()
-
+func RunSyncTask(t Tasker, taskId, taskName string, input []byte) error {
 	log.Glog.Info("task run sync task", zap.String("id", taskId), zap.String("name", taskName))
 
 	err := RunSyncSubTask(t, input)
@@ -90,8 +113,7 @@ func RunSyncTask(t Tasker, input []byte) error {
 		return err
 	}
 
-	// todo: RunSyncSubTask
-	err = t.InitTaskStep(input)
+	err = t.InitTaskStep(taskId, taskName, input)
 	if err != nil {
 		log.Glog.Error("Init sync task step failed", zap.String("id", taskId), zap.Error(err))
 	} else {
@@ -125,7 +147,7 @@ func (m *TaskManager) SaveTask(t Tasker, info *TaskInfo) error {
 	// todo: EncryptInput
 
 	it := t.GetTask()
-	err = m.db.Exec(sqlStr, it.id, it.status, it.name, it.subStepStatus, it.subStepName, it.input, it.typ, time.Now().Unix()).Error
+	err = m.db.Exec(sqlStr, it.id, it.status, it.name, it.subStepStatus, it.subStep, it.input, it.typ, time.Now().Unix()).Error
 	if err != nil {
 		log.Glog.Info("save task info failed", zap.String("id", t.Id()), zap.Error(err))
 		return err
@@ -148,12 +170,26 @@ func (m *TaskManager) QueryTaskInfo(id, name string) (*TaskInfo, error) {
 	return info, nil
 }
 
+func (m *TaskManager) UpdateSubStepTaskStatus(id, name, subStep string, subStepStatus int) error {
+	log.Glog.Info("Begin to update step task status", zap.String("id", id), zap.String("name", name), zap.String("step", subStep))
+
+	sqlStr := fmt.Sprintf("update %s set SubStep = ?, SubStepStatus=? where Id = ? and Name = ?", DBJobs)
+
+	err := m.db.Exec(sqlStr, subStep, subStepStatus, id, name).Error
+	if err != nil {
+		log.Glog.Error("Update step task status failed", zap.String("id", id), zap.String("name", name), zap.String("step", subStep), zap.Error(err))
+		return err
+	}
+	log.Glog.Debug("Update step task status succ", zap.String("id", id), zap.String("name", name), zap.String("step", subStep))
+	return nil
+}
+
 func (m *TaskManager) UpdateTaskStatus(id, name string, status int) error {
 	log.Glog.Info("Begin to update task status", zap.String("id", id), zap.String("name", name), zap.Int("status", status))
 
 	sqlStr := fmt.Sprintf("update %s set Status=? where Id = ? and Name = ?", DBJobs)
 
-	err := m.db.Exec(sqlStr, id, name, status).Error
+	err := m.db.Exec(sqlStr, status, id, name).Error
 	if err != nil {
 		log.Glog.Error("Update task status failed", zap.String("id", id), zap.String("name", name), zap.Int("status", status), zap.Error(err))
 		return err
@@ -163,7 +199,7 @@ func (m *TaskManager) UpdateTaskStatus(id, name string, status int) error {
 }
 
 func (m *TaskManager) GetAllRunningFromDB() ([]*TaskInfo, error) {
-	sqlStr := fmt.Sprintf("select Id,Name from %s where Status = ? and SubStepStatus = ?", DBJobs)
+	sqlStr := fmt.Sprintf("select Id,Name,SavedCtx from %s where Status = ? and SubStepStatus = ?", DBJobs)
 
 	ls := make([]*TaskInfo, 0)
 	err := m.db.Raw(sqlStr, StatusInProgress, StatusInProgress).Scan(&ls).Error
@@ -186,6 +222,31 @@ func (m *TaskManager) CreateRedoTask() error {
 	for _, ti := range ls {
 		log.Glog.Debug("recreate task", zap.String("name", ti.Name), zap.String("step", ti.SubStepName))
 
+		tpy := m.redoFuncContainer[ti.Name]
+		if tpy == nil {
+			log.Glog.Error("no redo task type", zap.String("name", ti.Name))
+			continue
+		}
+
+		rter := reflect.New(tpy)
+		rt := rter.Interface().(Tasker)
+		if err = rt.ReloadCtx(ti.SavedCtx); err != nil {
+			log.Glog.Error("redo task reload savedCtx", zap.String("name", ti.Name), zap.String("savedCtx", string(ti.SavedCtx)))
+			continue
+		}
+
+		if err = m.AddTask(rt); err != nil {
+			log.Glog.Error("add redo task", zap.String("name", ti.Name))
+			continue
+		}
+
+		go func(name string) {
+			log.Glog.Info("redo task start", zap.String("name", name))
+			if err := rt.RunTask(); err != nil {
+				log.Glog.Error("redo task", zap.String("name", name), zap.Error(err))
+			}
+			log.Glog.Info("redo task end", zap.String("name", name))
+		}(ti.Name)
 	}
 
 	return nil
