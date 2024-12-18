@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"fmt"
 	mrand "math/rand"
 	"sync"
 )
@@ -17,10 +16,9 @@ var (
 )
 
 type RSAPair struct {
-	Public   *rsa.PublicKey
-	Private  *rsa.PrivateKey
-	LimitLen int
-	Index    int
+	Public  *rsa.PublicKey
+	Private *rsa.PrivateKey
+	Index   int
 }
 
 func InitRSA(bits, num int) error {
@@ -49,10 +47,9 @@ func InitRSA(bits, num int) error {
 			return err
 		}
 		rsaList[i] = &RSAPair{
-			Public:   &privateKey.PublicKey,
-			Private:  privateKey,
-			LimitLen: bits,
-			Index:    i,
+			Public:  &privateKey.PublicKey,
+			Private: privateKey,
+			Index:   i,
 		}
 	}
 
@@ -78,10 +75,6 @@ func GetRSAByIndex(i int) *RSAPair {
 }
 
 func (p *RSAPair) Encrypt(data []byte) ([]byte, error) {
-	if len(data) > p.LimitLen {
-		return nil, fmt.Errorf("data len overflow: %d", p.LimitLen)
-	}
-
 	encryptedBytes, err := rsa.EncryptOAEP(
 		sha256.New(),
 		rand.Reader,

@@ -1,6 +1,7 @@
 package security
 
 import (
+	"crypto/rsa"
 	"encoding/base64"
 	"testing"
 
@@ -35,4 +36,18 @@ func TestRSA(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, msg, dData)
 	spew.Dump(dData)
+}
+
+func TestRSALen(t *testing.T) {
+	num := 1
+	bits := 2048
+	err := InitRSA(bits, num)
+	assert.Nil(t, err)
+
+	p := GetRSAByRandom()
+	assert.NotEmpty(t, p)
+
+	msg := make([]byte, bits+10)
+	_, err = p.Encrypt(msg)
+	assert.Equal(t, err, rsa.ErrMessageTooLong)
 }
