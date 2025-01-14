@@ -7,9 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/meilihao/golib/v2/cmd"
 	"github.com/meilihao/golib/v2/file"
+	"github.com/meilihao/golib/v2/log"
+	"go.uber.org/zap"
+)
+
+var (
+	refreshStatus atomic.Int32
 )
 
 const (
@@ -53,6 +61,28 @@ type TargetFrom struct {
 	Password   string `json:"password"`
 	ServerIp   string `json:"server_ip"`
 	ServerPort int    `json:"server_port"`
+}
+
+func RefreshFc() (s int32) {
+	s = refreshStatus.Load()
+	if s > 0 {
+		return
+	}
+
+	refreshStatus.Add(1)
+	defer refreshStatus.Add(-1)
+
+	fcls, _ := filepath.Glob("/sys/class/fc_host/host*")
+	if len(fcls) > 0 {
+		data, err := cmd.CmdCombinedBash(nil, `echo "- - -" | tee -a /sys/class/scsi_host/*/scan`)
+		if err != nil {
+			log.Glog.Error("scan fc", zap.String("out", string(data)), zap.Error(err))
+		}
+
+		time.Sleep(3 * time.Second)
+	}
+
+	return
 }
 
 func GetMediumxs() ([]*Mediumx, error) {

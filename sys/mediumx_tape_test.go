@@ -9,6 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRefreshFc(t *testing.T) {
+	s := RefreshFc()
+	assert.Equal(t, s, int32(0))
+}
+
 func TestTapeByIdPaths(t *testing.T) {
 	byIds, err := TapeByIdPaths()
 	assert.Nil(t, err)
