@@ -85,6 +85,7 @@ func RefreshFc() (s int32) {
 	return
 }
 
+// 物理带库, 可能TypeTape在前, TypeMediumx在后
 func GetMediumxs() ([]*Mediumx, error) {
 	data, err := cmd.CmdCombinedBash(nil, "lsscsi -g")
 	if err != nil {
@@ -103,9 +104,11 @@ func GetMediumxs() ([]*Mediumx, error) {
 		lines = append(lines, strings.Fields(tmp))
 	}
 
+	var idx int
 	var num int
 	var tmpMediumx *Mediumx
 	ls := make([]*Mediumx, 0)
+	m := make(map[string]*Mediumx, 3)
 	for _, v := range lines {
 		if len(v) < 7 {
 			continue
@@ -129,13 +132,23 @@ func GetMediumxs() ([]*Mediumx, error) {
 			tmpMediumx.Target = target
 
 			ls = append(ls, tmpMediumx)
+
+			idx = strings.LastIndex(tmpMediumx.Bus, ":")
+			m[tmpMediumx.Bus[:idx]] = tmpMediumx
 		}
+	}
+
+	if len(ls) == 0 {
+		return ls, nil
+	}
+
+	for _, v := range lines {
+		if len(v) < 7 {
+			continue
+		}
+		num = len(v)
 
 		if v[1] == TypeTape {
-			if tmpMediumx == nil {
-				return nil, fmt.Errorf("found tape(%s) with no mediumx", v[0])
-			}
-
 			tp := &Tape{
 				Bus:    strings.TrimPrefix(strings.TrimSuffix(v[0], "]"), "["),
 				Rev:    v[num-3],
@@ -143,15 +156,17 @@ func GetMediumxs() ([]*Mediumx, error) {
 				Sg:     v[num-1],
 			}
 
+			idx = strings.LastIndex(tp.Bus, ":")
+			tmpMediumx = m[tp.Bus[:idx]]
+			if tmpMediumx == nil {
+				return nil, fmt.Errorf("found tape(%s) with no mediumx", v[0])
+			}
+
 			tp.Vendor = file.FileValue(filepath.Join("/sys/bus/scsi/devices", tp.Bus, "vendor"))
 			tp.Model = file.FileValue(filepath.Join("/sys/bus/scsi/devices", tp.Bus, "model"))
 
 			tmpMediumx.Tapes = append(tmpMediumx.Tapes, tp)
 		}
-	}
-
-	if len(ls) == 0 {
-		return ls, nil
 	}
 
 	byIds, err := TapeByIdPaths()
