@@ -1,6 +1,6 @@
 package misc
 
-func IsInts(s int, list []int) bool {
+func IsInInts(s int, list []int) bool {
 	if len(list) == 0 {
 		return false
 	}
