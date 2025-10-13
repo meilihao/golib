@@ -1,6 +1,6 @@
 package misc
 
-func IsInInts(s int, list []int) bool {
+func IsInInts[T int | int64 | uint64](s T, list []T) bool {
 	if len(list) == 0 {
 		return false
 	}
@@ -12,4 +12,12 @@ func IsInInts(s int, list []int) bool {
 	}
 
 	return false
+}
+
+func MaxInt[T int | int64 | uint64](a, b T) T {
+	if a >= b {
+		return a
+	} else {
+		return b
+	}
 }

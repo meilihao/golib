@@ -70,7 +70,7 @@ func InitZap(c *ZapConfig) {
 	}
 
 	encoderConf := zap.NewProductionEncoderConfig()
-	encoderConf.EncodeTime = zapcore.RFC3339TimeEncoder // no use unixstamp
+	encoderConf.EncodeTime = zapcore.RFC3339TimeEncoder // no use unixstamp. with nano use zapcore.RFC3339NanoTimeEncoder
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConf),
 		w,
