@@ -47,10 +47,10 @@ func initConn(endpoint string) (*grpc.ClientConn, error) {
 
 func SetupOTelSDK(ctx context.Context, endpoint, serviceName string, resourceAttributes ...attribute.KeyValue) (func(ctx context.Context) error, error) {
 	if endpoint == "" {
-		log.Glog.Info("trace status", zap.Bool("status", false))
+		log.Glog.Info("otel disabled")
 		return func(ctx context.Context) error { return nil }, nil
 	}
-	log.Glog.Info("trace status", zap.String("server", endpoint), zap.String("service", serviceName))
+	log.Glog.Info("otel enabled", zap.String("server", endpoint), zap.String("service", serviceName))
 
 	conn, err := initConn(endpoint)
 	if err != nil {
@@ -76,12 +76,14 @@ func SetupOTelSDK(ctx context.Context, endpoint, serviceName string, resourceAtt
 	shutdownFn := func(ctx context.Context) error {
 		var err error
 
+		log.Glog.Info("otel start to call shutdown")
 		for _, fn := range shutdownFuncs {
 			if errFn := fn(ctx); errFn != nil {
 				log.Glog.Error("failed to shutdown otelProvider", zap.Error(err))
 				err = errors.Join(err, errFn)
 			}
 		}
+		log.Glog.Info("otel call shutdown done")
 
 		shutdownFuncs = nil
 		return err
