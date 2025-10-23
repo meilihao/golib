@@ -79,7 +79,7 @@ func SetupOTelSDK(ctx context.Context, endpoint, serviceName string, resourceAtt
 		log.Glog.Info("otel start to call shutdown")
 		for _, fn := range shutdownFuncs {
 			if errFn := fn(ctx); errFn != nil {
-				log.Glog.Error("failed to shutdown otelProvider", zap.Error(err))
+				log.Glog.Error("failed to shutdown otelProvider", zap.Error(errFn))
 				err = errors.Join(err, errFn)
 			}
 		}
